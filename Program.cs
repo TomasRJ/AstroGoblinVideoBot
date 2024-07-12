@@ -8,6 +8,10 @@ var userSecret = new ConfigurationBuilder()
     .AddUserSecrets<Program>()
     .Build()
     .Get<Credentials>();
+var config = new ConfigurationBuilder()
+    .AddJsonFile("config.json")
+    .Build()
+    .Get<Config>();
 #endregion
 
 
