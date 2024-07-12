@@ -12,4 +12,7 @@ public struct Config
     
     [JsonPropertyName("UserAgent")]
     public string UserAgent { get; init; }
+    
+    [JsonPropertyName("Subreddit")]
+    public string Subreddit { get; init; }
 }

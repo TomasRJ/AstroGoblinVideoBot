@@ -1,5 +1,6 @@
 ﻿{
   "AccessTokenUrl": "https://www.reddit.com/api/v1/access_token",
   "SubmitUrl": "https://oauth.reddit.com/api/submit",
-  "UserAgent": "AstroGoblinVideoBot v1.0 by u/AstroGoblinVideoBot"
+  "UserAgent": "AstroGoblinVideoBot v1.0 by u/AstroGoblinVideoBot",
+  "Subreddit": "astrogoblin"
 }
