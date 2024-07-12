@@ -15,4 +15,13 @@ public struct Config
     
     [JsonPropertyName("Subreddit")]
     public string Subreddit { get; init; }
+    
+    [JsonPropertyName("CallbackUrl")]
+    public string CallbackUrl { get; init; }
+    
+    [JsonPropertyName("GooglePubSubUrl")]
+    public string GooglePubSubUrl { get; init; }
+    
+    [JsonPropertyName("GooglePubSubTopic")]
+    public string GooglePubSubTopic { get; init; }
 }

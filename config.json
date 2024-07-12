@@ -2,5 +2,8 @@
   "AccessTokenUrl": "https://www.reddit.com/api/v1/access_token",
   "SubmitUrl": "https://oauth.reddit.com/api/submit",
   "UserAgent": "AstroGoblinVideoBot v1.0 by u/AstroGoblinVideoBot",
-  "Subreddit": "astrogoblin"
+  "Subreddit": "astrogoblin",
+  "CallbackUrl": "http://localhost:8080",
+  "GooglePubSubUrl": "https://pubsubhubbub.appspot.com/subscribe",
+  "GooglePubSubTopic": "https://www.youtube.com/xml/feeds/videos.xml?channel_id=UCRb4V8WHojbGqEvzL_9g03Q"
 }
