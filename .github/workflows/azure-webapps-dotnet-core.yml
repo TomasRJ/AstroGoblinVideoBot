@@ -34,32 +34,32 @@ jobs:
       - name: Set up .NET Core
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-version: ${{env.DOTNET_VERSION}}
         env:
-          HmacSecret: ${{ secrets.HMACSECRET }}
-          RedditClientId: ${{ secrets.REDDITCLIENTID }}
-          RedditSecret: ${{ secrets.REDDITSECRET }}
-          CallbackUrl: ${{ secrets.CALLBACKURL }}
+          HmacSecret: ${{secrets.HMACSECRET}}
+          RedditClientId: ${{secrets.REDDITCLIENTID}}
+          RedditSecret: ${{secrets.REDDITSECRET}}
+          CallbackUrl: ${{secrets.CALLBACKURL}}
 
       - name: Set up dependency caching for faster builds
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: "${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}"
+          key: "${{runner.os}}-nuget-${{hashFiles('**/packages.lock.json')}}"
           restore-keys: |
-            ${{ runner.os }}-nuget-
+            ${{runner.os}}-nuget-
 
       - name: Build with dotnet
         run: dotnet build --configuration Release
 
       - name: dotnet publish
-        run: dotnet publish -c Release -o ${{ env.DOTNET_ROOT }}/myapp
+        run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
-          name: .net-app
-          path: ${{ env.DOTNET_ROOT }}/myapp
+          name: {{env.AZURE_WEBAPP_NAME}}
+          path: ${{env.DOTNET_ROOT}}/myapp
 
   deploy:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
@@ -69,20 +69,20 @@ jobs:
     needs: build
     environment:
       name: 'Development'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+      url: ${{steps.deploy-to-webapp.outputs.webapp-url}}
 
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v3
         with:
-          name: .net-app
+          name: {{env.AZURE_WEBAPP_NAME}}
 
       - name: Deploy to Azure Static Web App
         id: deploy-to-static-webapp
         uses: azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          app_artifact_location: ${{ env.DOTNET_ROOT }}/myapp
+          azure_static_web_apps_api_token: ${{secrets.AZURE_STATIC_WEB_APPS_API_TOKEN}}
+          app_artifact_location: ${{env.DOTNET_ROOT}}/myapp
           action: "upload"
           skip_app_build: true
   
@@ -95,6 +95,6 @@ jobs:
         id: closepullrequest
         uses: azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          app_artifact_location: ${{ env.DOTNET_ROOT }}/myapp
+          azure_static_web_apps_api_token: ${{secrets.AZURE_STATIC_WEB_APPS_API_TOKEN}}
+          app_artifact_location: ${{env.DOTNET_ROOT}}/myapp
           action: "close"
