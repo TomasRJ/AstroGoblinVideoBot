@@ -3,7 +3,6 @@
   "SubmitUrl": "https://oauth.reddit.com/api/submit",
   "UserAgent": "AstroGoblinVideoBot v1.0 by u/AstroGoblinVideoBot",
   "Subreddit": "astrogoblin",
-  "CallbackUrl": "https://astrogoblinvideobot.azurewebsites.net/youtube",
   "GooglePubSubUrl": "https://pubsubhubbub.appspot.com/subscribe",
   "GooglePubSubTopic": "https://www.youtube.com/xml/feeds/videos.xml?channel_id=UCRb4V8WHojbGqEvzL_9g03Q"
 }

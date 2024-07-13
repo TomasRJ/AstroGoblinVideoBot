@@ -1,23 +1,15 @@
 # This workflow will build and push a .NET Core app to an Azure Web App when a commit is pushed to your default branch.
 #
-# This workflow assumes you have already created the target Azure App Service web app.
+# This workflow assumes you have already created the target Azure Static Web App and have the following secrets set in your repository:
+# * AZURE_STATIC_WEB_APPS_API_TOKEN: This is your Azure Static Web Apps API token. You can get this from the Azure portal.
+# * HMACSECRET: This is the secret key used to encrypt the JWT token.
+# * REDDITCLIENTID: This is the client ID of the Reddit app.
+# * REDDITSECRET: This is the secret of the Reddit app.
+# * CALLBACKURL: This is the callback URL for the Google PubSubHubbub.
 # For instructions see https://docs.microsoft.com/en-us/azure/app-service/quickstart-dotnetcore?tabs=net60&pivots=development-environment-vscode
-#
-# To configure this workflow:
-#
-# 1. Download the Publish Profile for your Azure Web App. You can download this file from the Overview page of your Web App in the Azure Portal.
-#    For more information: https://docs.microsoft.com/en-us/azure/app-service/deploy-github-actions?tabs=applevel#generate-deployment-credentials
-#
-# 2. Create a secret in your repository named AZURE_WEBAPP_PUBLISH_PROFILE, paste the publish profile contents as the value of the secret.
-#    For instructions on obtaining the publish profile see: https://docs.microsoft.com/azure/app-service/deploy-github-actions#configure-the-github-secret
-#
-# 3. Change the value for the AZURE_WEBAPP_NAME. Optionally, change the AZURE_WEBAPP_PACKAGE_PATH and DOTNET_VERSION environment variables below.
-#
-# For more information on GitHub Actions for Azure: https://github.com/Azure/Actions
-# For more information on the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# For more samples to get started with GitHub Action workflows to deploy to Azure: https://github.com/Azure/actions-workflow-samples
 
-name: Build and deploy ASP.Net Core app to an Azure Web App
+
+name: Build and deploy ASP.Net Core app to an Azure Static Web App
 
 env:
   AZURE_WEBAPP_NAME: astrogoblinvideobot    # set this to the name of your Azure Web App
@@ -40,19 +32,20 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up .NET Core
-        uses: actions/setup-dotnet@v2
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
         env:
-          HmacSecret: ${{secrets.HMACSECRET}}
-          RedditClientId: ${{secrets.REDDITCLIENTID}}
-          RedditSecret: ${{secrets.REDDITSECRET}}
+          HmacSecret: ${{ secrets.HMACSECRET }}
+          RedditClientId: ${{ secrets.REDDITCLIENTID }}
+          RedditSecret: ${{ secrets.REDDITSECRET }}
+          CallbackUrl: ${{ secrets.CALLBACKURL }}
 
       - name: Set up dependency caching for faster builds
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          key: "${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}"
           restore-keys: |
             ${{ runner.os }}-nuget-
 
@@ -60,15 +53,16 @@ jobs:
         run: dotnet build --configuration Release
 
       - name: dotnet publish
-        run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
+        run: dotnet publish -c Release -o ${{ env.DOTNET_ROOT }}/myapp
 
       - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
+          path: ${{ env.DOTNET_ROOT }}/myapp
 
   deploy:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     permissions:
       contents: none
     runs-on: ubuntu-latest
@@ -83,10 +77,24 @@ jobs:
         with:
           name: .net-app
 
-      - name: Deploy to Azure Web App
-        id: deploy-to-webapp
-        uses: azure/webapps-deploy@v2
+      - name: Deploy to Azure Static Web App
+        id: deploy-to-static-webapp
+        uses: azure/static-web-apps-deploy@v1
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          app_artifact_location: ${{ env.DOTNET_ROOT }}/myapp
+          action: "upload"
+          skip_app_build: true
+  
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close Pull Request Job
+    steps:
+      - name: Close Pull Request
+        id: closepullrequest
+        uses: azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          app_artifact_location: ${{ env.DOTNET_ROOT }}/myapp
+          action: "close"

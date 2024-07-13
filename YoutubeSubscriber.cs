@@ -14,7 +14,7 @@ public abstract class YoutubeSubscriber
     {
         var subscribeForm = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            { "hub.callback", Config.CallbackUrl },
+            { "hub.callback", UserSecret.CallbackUrl },
             { "hub.mode", "subscribe" },
             { "hub.topic", Config.GooglePubSubTopic },
             { "hub.verify", "async" },
