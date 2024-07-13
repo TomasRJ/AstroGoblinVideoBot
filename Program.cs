@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 var config = new ConfigurationBuilder().AddJsonFile("config.json").Build().Get<Config>();
+var userSecret = new ConfigurationBuilder().AddUserSecrets<RedditPoster>().Build().Get<Credentials>();
 
 await YoutubeSubscriber.SubscribeToChannel();
 
@@ -29,12 +30,28 @@ app.MapGet("/youtube", async youtubeVerify =>
 
 app.MapPost("/youtube", async youtubeRequest =>
 {
-    var memoryStream = new MemoryStream();
-    await youtubeRequest.Request.Body.CopyToAsync(memoryStream);
-    memoryStream.Position = 0;
+    var headers = youtubeRequest.Request.Headers;
+    var signatureHeader = headers["X-Hub-Signature"].FirstOrDefault();
+
+    if (YoutubeSubscriber.SignatureExists(signatureHeader, youtubeRequest)) return;
     
+    if (YoutubeSubscriber.SignatureFormatCheck(signatureHeader, youtubeRequest, out var signatureParts)) return;
+    var signature = signatureParts[1];
+    
+    var requestBody = new MemoryStream();
+    await youtubeRequest.Request.Body.CopyToAsync(requestBody);
+    requestBody.Position = 0;
+    
+    if (!YoutubeSubscriber.VerifySignature(requestBody.ToArray(), userSecret.HmacSecret, signature))
+    {
+        Console.WriteLine("Invalid signature");
+        youtubeRequest.Response.StatusCode = 400;
+        return;
+    }
+    
+    requestBody.Position = 0;
     var serializer = new XmlSerializer(typeof(VideoFeed));
-    var videoFeed = (VideoFeed) (serializer.Deserialize(memoryStream) ?? throw new InvalidOperationException());
+    var videoFeed = (VideoFeed) (serializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
     
     await RedditPoster.SubmitVideo(oauthToken, videoFeed);
 });
