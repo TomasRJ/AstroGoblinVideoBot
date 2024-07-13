@@ -1,8 +1,10 @@
 # This workflow will build and push a .NET Core app to an Azure Web App when a commit is pushed to your default branch.
 #
-# This workflow assumes you have already created the target Azure Static Web App and have the following secrets set in your repository:
-# * AZURE_STATIC_WEB_APPS_API_TOKEN: This is your Azure Static Web Apps API token. You can get this from the Azure portal.
-# * HMACSECRET: This is the secret key used to encrypt the JWT token.
+# This workflow assumes you have already created the target Azure Web App and have the following secrets set in your repository:
+# * AZURE_CLIENT_ID: This is the client ID of the Azure service principal.
+# * AZURE_TENANT_ID: This is the tenant ID of the Azure service principal.
+# * AZURE_SUBSCRIPTION_ID: This is the subscription ID of the Azure account. Look here for more information: https://github.com/Azure/login?tab=readme-ov-file#login-with-openid-connect-oidc-recommended
+# * HMACSECRET: This is the secret key used verify the authenticity of the requests from Google PubSubHubbub.
 # * REDDITCLIENTID: This is the client ID of the Reddit app.
 # * REDDITSECRET: This is the secret of the Reddit app.
 # * CALLBACKURL: This is the callback URL for the Google PubSubHubbub.
@@ -11,61 +13,68 @@
 
 name: Build and deploy ASP.Net Core app to an Azure Static Web App
 
+env:
+  AZURE_WEBAPP_NAME: AstroGoblinVideoBot    # set this to the name of your Azure Web App
+  AZURE_WEBAPP_PACKAGE_PATH: '.'            # set this to the path to your web app project, defaults to the repository root
+  DOTNET_VERSION: '8.0.300'                 # set this to the .NET Core version to use
+
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-    branches:
-      - main
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build_and_deploy_job:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+  build:
     runs-on: ubuntu-latest
-    name: Build and Deploy Job
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Github Action
+        uses: actions/checkout@v4
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v4
         with:
-          submodules: true
-          lfs: false
-      
+          dotnet-version: ${{  env.DOTNET_VERSION  }}
+        env:
+          HmacSecret: ${{ secrets.HMACSECRET }}
+          RedditClientId: ${{ secrets.REDDITCLIENTID }}
+          RedditSecret: ${{ secrets.REDDITSECRET }}
+          CallbackUrl: ${{ secrets.CALLBACKURL }}
+
       - name: Set up dependency caching for faster builds
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: "${{runner.os}}-nuget-${{hashFiles('**/packages.lock.json')}}"
+          key: "${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}"
           restore-keys: |
-            ${{runner.os}}-nuget-
-      
-      - name: Build And Deploy
-        id: build_deploy
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
-          action: "upload"
-          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "src" # App source code path relative to repository root
-          api_location: "api" # Api source code path relative to repository root - optional
-          output_location: "public" # Built app content directory, relative to app_location - optional
-        env:
-          HmacSecret: ${{secrets.HMACSECRET}}
-          RedditClientId: ${{secrets.REDDITCLIENTID}}
-          RedditSecret: ${{secrets.REDDITSECRET}}
-          CallbackUrl: ${{secrets.CALLBACKURL}}
-        ###### End of Repository/Build Configurations ######
+            ${{ runner.os }}-nuget-
 
-  close_pull_request_job:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+      - name: Build with dotnet
+        run: dotnet build --configuration Release
+
+      - name: Publish with dotnet
+        run: dotnet publish -c Release --property:PublishDir='${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp'
+
+  deploy:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
-    name: Close Pull Request Job
+    needs: build
+    environment: development
+
     steps:
-      - name: Close Pull Request
-        id: closepullrequest
-        uses: Azure/static-web-apps-deploy@v1
+      - name: Login via Azure CLI
+        uses: azure/login@v2
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          action: "close"
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        
+      - name: Deploy to Azure Static Web App
+        id: deploy-to-static-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp
