@@ -2,7 +2,7 @@
 
 namespace AstroGoblinVideoBot.Model;
 
-public struct Config
+public readonly struct Config
 {
     [JsonPropertyName("AccessTokenUrl")]
     public string AccessTokenUrl { get; init; }
