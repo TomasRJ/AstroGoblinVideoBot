@@ -56,8 +56,7 @@ jobs:
 
       - name: Publish with dotnet
         id: dotnet-publish
-        run: dotnet publish AstroGoblinVideoBot.csproj -c Release -o ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp
-
+        run: dotnet publish AstroGoblinVideoBot.csproj -c Release -o '${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp'
       - name: LS the working directory and subdirectories after publish
         run: ls -aR ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
 
@@ -86,4 +85,4 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp
+          package: '${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp'
