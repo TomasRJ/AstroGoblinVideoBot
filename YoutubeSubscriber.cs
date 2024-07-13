@@ -40,7 +40,7 @@ public abstract class YoutubeSubscriber
         var userSecretType = typeof(Credentials);
         foreach (var propertyInfo in userSecretType.GetProperties())
         {
-            var isValueNull = propertyInfo.GetValue(Config) == null;
+            var isValueNull = propertyInfo.GetValue(UserSecret) == null;
             Console.WriteLine($"{propertyInfo.Name} is null: {isValueNull}");
         }
     }
