@@ -26,9 +26,31 @@ public abstract class RedditPoster
         Console.WriteLine("Failed to authenticate with Reddit");
         var responseContent = await authResponse.Content.ReadAsStringAsync();
         Console.WriteLine(responseContent);
+        PrintConfigValuesExists();
+        PrintUserSecretValuesExists();
         throw new HttpRequestException("Failed to authenticate with Reddit");
     }
-    
+
+    private static void PrintUserSecretValuesExists()
+    {
+       var userSecretType = typeof(Credentials);
+       foreach (var propertyInfo in userSecretType.GetProperties())
+       {
+           var isValueNull = propertyInfo.GetValue(Config) == null;
+           Console.WriteLine($"{propertyInfo.Name} is null: {isValueNull}");
+       }
+    }
+
+    private static void PrintConfigValuesExists()
+    {
+        var configType = typeof(Config);
+        foreach (var propertyInfo in configType.GetProperties())
+        {
+            var isValueNull = propertyInfo.GetValue(Config) == null;
+            Console.WriteLine($"{propertyInfo.Name} is null: {isValueNull}");
+        }
+    }
+
     public static async Task<bool> SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
     {
         RedditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", oauthToken.AccessToken);
@@ -50,6 +72,9 @@ public abstract class RedditPoster
             {
                 Console.WriteLine(error);
             }
+            
+            var contentString = await response.Content.ReadAsStringAsync();
+            Console.WriteLine(contentString);
         }
         
         Console.WriteLine("Successfully submitted video to Reddit");
