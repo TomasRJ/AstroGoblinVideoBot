@@ -11,81 +11,42 @@
 
 name: Build and deploy ASP.Net Core app to an Azure Static Web App
 
-env:
-  AZURE_WEBAPP_NAME: astrogoblinvideobot    # set this to the name of your Azure Web App
-  AZURE_WEBAPP_PACKAGE_PATH: '.'            # set this to the path to your web app project, defaults to the repository root
-  DOTNET_VERSION: '8.0.300'                 # set this to the .NET Core version to use
-
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
-
-permissions:
-  contents: read
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
 
 jobs:
-  build:
+  build_and_deploy_job:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
-
+    name: Build and Deploy Job
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up .NET Core
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v3
         with:
-          dotnet-version: ${{env.DOTNET_VERSION}}
+          submodules: true
+          lfs: false
+      - name: Build And Deploy
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ORANGE_SKY_0F13DE403 }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
+          action: "upload"
+          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
+          # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
+          app_location: "/" # App source code path
         env:
           HmacSecret: ${{secrets.HMACSECRET}}
           RedditClientId: ${{secrets.REDDITCLIENTID}}
           RedditSecret: ${{secrets.REDDITSECRET}}
           CallbackUrl: ${{secrets.CALLBACKURL}}
+        ###### End of Repository/Build Configurations ######
 
-      - name: Set up dependency caching for faster builds
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: "${{runner.os}}-nuget-${{hashFiles('**/packages.lock.json')}}"
-          restore-keys: |
-            ${{runner.os}}-nuget-
-
-      - name: Build with dotnet
-        run: dotnet build --configuration Release
-
-      - name: dotnet publish
-        run: dotnet publish -c Release --property:PublishDir=${{env.DOTNET_ROOT}}/myapp
-
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
-
-  deploy:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
-    permissions:
-      contents: none
-    runs-on: ubuntu-latest
-    needs: build
-    environment:
-      name: 'Development'
-      url: ${{steps.deploy-to-webapp.outputs.webapp-url}}
-
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: .net-app
-
-      - name: Deploy to Azure Static Web App
-        id: deploy-to-static-webapp
-        uses: azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{secrets.AZURE_STATIC_WEB_APPS_API_TOKEN}}
-          app_artifact_location: ${{env.DOTNET_ROOT}}/myapp
-          action: "upload"
-          skip_app_build: true
-  
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
@@ -93,8 +54,7 @@ jobs:
     steps:
       - name: Close Pull Request
         id: closepullrequest
-        uses: azure/static-web-apps-deploy@v1
+        uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{secrets.AZURE_STATIC_WEB_APPS_API_TOKEN}}
-          app_artifact_location: ${{env.DOTNET_ROOT}}/myapp
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ORANGE_SKY_0F13DE403 }}
           action: "close"
