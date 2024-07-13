@@ -29,30 +29,24 @@ public abstract class RedditPoster
         throw new HttpRequestException("Failed to authenticate with Reddit");
     }
     
-    public static async Task<bool> SubmitVideo(OauthToken oauthToken)
+    public static async Task<bool> SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
     {
         RedditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", oauthToken.AccessToken);
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "api_type", "json" },
             { "kind", "link" },
-            { "sr", Config.Subreddit },
-            { "title", "Astro Goblin Video Bot" },
-            { "url", "https://www.youtube.com/watch?v=ZQ7o6e4vJ2U" }
+            { "sr", "test" },
+            { "title", videoFeed.Entry.Title },
+            { "url", videoFeed.Entry.Link.Href }
         });
         
         var response = await RedditHttpClient.PostAsync(Config.SubmitUrl, content);
+        var submitResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
+
+        if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0) return false;
         
-        if (response.StatusCode == HttpStatusCode.OK)
-        {
-            var okContent = await response.Content.ReadAsStringAsync();
-            Console.WriteLine(okContent);
-            return true;
-        }
-        
-        Console.WriteLine("Failed to submit video to Reddit");
-        var errorContent = await response.Content.ReadAsStringAsync();
-        Console.WriteLine(errorContent);
-        return false;
+        Console.WriteLine("Successfully submitted video to Reddit");
+        return true;
     }
 }

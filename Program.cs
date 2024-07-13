@@ -1,3 +1,4 @@
+using System.Xml.Serialization;
 using AstroGoblinVideoBot;
 using AstroGoblinVideoBot.Model;
 
@@ -16,9 +17,19 @@ var config = new ConfigurationBuilder()
 #endregion
 
 var oauthToken = await RedditPoster.GetOauthToken();
-await RedditPoster.SubmitVideo(oauthToken);
-
 
 app.MapGet("/", () => "Hello World!");
+
+app.MapPost("/", async context =>
+{
+    var memoryStream = new MemoryStream();
+    await context.Request.Body.CopyToAsync(memoryStream);
+    memoryStream.Position = 0;
+    
+    var serializer = new XmlSerializer(typeof(VideoFeed));
+    var videoFeed = (VideoFeed) (serializer.Deserialize(memoryStream) ?? throw new InvalidOperationException());
+    
+    await RedditPoster.SubmitVideo(oauthToken, videoFeed);
+});
 
 await app.RunAsync();
