@@ -14,7 +14,6 @@
 name: Build and deploy ASP.Net Core app to an Azure Static Web App
 
 env:
-  AZURE_WEBAPP_NAME: astrogoblinvideobot    # set this to the name of your Azure Web App
   AZURE_WEBAPP_PACKAGE_PATH: '.'            # set this to the path to your web app project, defaults to the repository root
   DOTNET_VERSION: '8.0.300'                 # set this to the .NET Core version to use
 
@@ -62,9 +61,7 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     needs: build
-    environment: 
-      name: development
-      url: ${{ secrets.CALLBACKURL }}
+    environment: development
     permissions:
       id-token: write # This is required for requesting the JWT
 
@@ -81,5 +78,5 @@ jobs:
         id: deploy-to-static-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          app-name: ${{ secret.AZURE_WEBAPP_NAME }}
           package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp
