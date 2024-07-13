@@ -33,9 +33,9 @@ app.MapPost("/youtube", async youtubeRequest =>
     var headers = youtubeRequest.Request.Headers;
     var signatureHeader = headers["X-Hub-Signature"].FirstOrDefault();
 
-    if (YoutubeSubscriber.SignatureExists(signatureHeader, youtubeRequest)) return;
+    if (!YoutubeSubscriber.SignatureExists(signatureHeader, youtubeRequest)) return;
     
-    if (YoutubeSubscriber.SignatureFormatCheck(signatureHeader, youtubeRequest, out var signatureParts)) return;
+    if (!YoutubeSubscriber.SignatureFormatCheck(signatureHeader, youtubeRequest, out var signatureParts)) return;
     var signature = signatureParts[1];
     
     var requestBody = new MemoryStream();
