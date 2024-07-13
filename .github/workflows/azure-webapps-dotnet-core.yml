@@ -85,11 +85,6 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: LS the working directory and subdirectories
-        run: |
-          echo "$PWD"
-          ls -aR ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
         
       - name: Deploy Azure Web App
         id: deploy-to-azure-web-app
