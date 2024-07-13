@@ -57,8 +57,11 @@ jobs:
       - name: Publish with dotnet
         id: dotnet-publish
         run: dotnet publish AstroGoblinVideoBot.csproj -c Release -o '${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp'
+      
       - name: LS the working directory and subdirectories after publish
-        run: ls -aR ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        run: |
+          echo pwd
+          ls -aR ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
 
   deploy:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
@@ -78,7 +81,9 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: LS the working directory and subdirectories
-        run: ls -aR ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        run: |
+          echo pwd
+          ls -aR ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
         
       - name: Deploy Azure Web App
         id: deploy-to-static-webapp
