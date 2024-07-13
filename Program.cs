@@ -6,7 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 var config = new ConfigurationBuilder().AddJsonFile("config.json").Build().Get<Config>();
-var userSecret = new ConfigurationBuilder().AddUserSecrets<RedditPoster>().Build().Get<Credentials>();
+var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>().Build().Get<Credentials>();
 
 await YoutubeSubscriber.SubscribeToChannel();
 
