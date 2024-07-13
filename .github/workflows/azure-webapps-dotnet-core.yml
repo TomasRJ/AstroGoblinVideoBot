@@ -60,7 +60,7 @@ jobs:
       
       - name: LS the working directory and subdirectories after publish
         run: |
-          echo pwd
+          echo "$PWD"
           ls -aR ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
 
   deploy:
@@ -82,7 +82,7 @@ jobs:
 
       - name: LS the working directory and subdirectories
         run: |
-          echo pwd
+          echo "$PWD"
           ls -aR ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
         
       - name: Deploy Azure Web App
