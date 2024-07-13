@@ -44,7 +44,13 @@ public abstract class RedditPoster
         var response = await RedditHttpClient.PostAsync(Config.SubmitUrl, content);
         var submitResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
 
-        if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0) return false;
+        if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0)
+        {
+            foreach (var error in submitResponse.Details.Errors)
+            {
+                Console.WriteLine(error);
+            }
+        }
         
         Console.WriteLine("Successfully submitted video to Reddit");
         return true;
