@@ -30,29 +30,7 @@ public abstract class YoutubeSubscriber
         Console.WriteLine("Failed to subscribe to Youtube channel");
         var responseContent = await subscribeResponse.Content.ReadAsStringAsync();
         Console.WriteLine(responseContent);
-        PrintConfigValuesExists();
-        PrintUserSecretValuesExists();
         return false;
-    }
-
-    private static void PrintUserSecretValuesExists()
-    {
-        var userSecretType = typeof(Credentials);
-        foreach (var propertyInfo in userSecretType.GetProperties())
-        {
-            var isValueNull = propertyInfo.GetValue(UserSecret) == null;
-            Console.WriteLine($"{propertyInfo.Name} is null: {isValueNull}");
-        }
-    }
-
-    private static void PrintConfigValuesExists()
-    {
-        var configType = typeof(Config);
-        foreach (var propertyInfo in configType.GetProperties())
-        {
-            var isValueNull = propertyInfo.GetValue(Config) == null;
-            Console.WriteLine($"{propertyInfo.Name} is null: {isValueNull}");
-        }
     }
 
     public static bool VerifySignature(byte[] payload, string secret, string signature)
