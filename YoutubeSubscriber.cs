@@ -6,8 +6,8 @@ namespace AstroGoblinVideoBot;
 
 public abstract class YoutubeSubscriber
 {
-    private static readonly Config Config = new ConfigurationBuilder().AddJsonFile("config.json").Build().Get<Config>();
-    private static readonly Credentials UserSecret = new ConfigurationBuilder().AddUserSecrets<RedditPoster>().Build().Get<Credentials>();
+    private static readonly Config Config = new ConfigurationBuilder().AddJsonFile("config.json", optional:false).Build().Get<Config>();
+    private static readonly Credentials UserSecret = new ConfigurationBuilder().AddUserSecrets<RedditPoster>(optional:false).Build().Get<Credentials>();
     private static readonly HttpClient YoutubeHttpClient = new();
     
     public static async Task<bool> SubscribeToChannel()

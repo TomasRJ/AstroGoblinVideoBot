@@ -5,24 +5,8 @@ using AstroGoblinVideoBot.Model;
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
-var config = new ConfigurationBuilder().AddJsonFile("config.json").Build().Get<Config>();
-var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>().Build().Get<Credentials>();
-
-var currentDirFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory());
-Console.WriteLine("Current directory: " + Directory.GetCurrentDirectory());
-Console.WriteLine("Files in current directory:");
-foreach (var file in currentDirFiles)
-{
-    Console.WriteLine(file);
-}
-
-var appContextDirFiles = Directory.EnumerateFiles(AppContext.BaseDirectory);
-Console.WriteLine("AppContext.BaseDirectory: " + AppContext.BaseDirectory);
-Console.WriteLine("Files in AppContext.BaseDirectory:");
-foreach (var file in appContextDirFiles)
-{
-    Console.WriteLine(file);
-}
+var config = new ConfigurationBuilder().AddJsonFile("config.json", optional:false).Build().Get<Config>();
+var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>(optional:false).Build().Get<Credentials>();
 
 await YoutubeSubscriber.SubscribeToChannel();
 
