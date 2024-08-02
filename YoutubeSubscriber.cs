@@ -52,7 +52,7 @@ public abstract class YoutubeSubscriber
     public static bool SignatureFormatCheck(string? signature, HttpContext httpContext, out string[] strings)
     {
         strings = signature!.Split('=');
-        if (strings.Length == 2 && strings[0] == "sha1") return false;
+        if (strings is ["sha1", _]) return false;
         Console.WriteLine("Invalid signature format");
         httpContext.Response.StatusCode = 400;
         return true;
