@@ -11,14 +11,21 @@ public abstract class RedditPoster
     private static readonly Credentials UserSecret = new ConfigurationBuilder().AddUserSecrets<RedditPoster>(optional:false).Build().Get<Credentials>();
     private static readonly HttpClient RedditHttpClient = new();
 
-    static RedditPoster() => RedditHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd(Config.UserAgent);
+    static RedditPoster() => RedditHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd(Config.RedditUserAgent);
 
-    public static async Task<OauthToken> GetOauthToken()
+    public static async Task<OauthToken> GetOauthToken(string authorizationCode)
     {
-        var basicAuth = Encoding.UTF8.GetBytes($"{UserSecret.RedditClientId}:{UserSecret.RedditSecret}");
-        RedditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(basicAuth));
-        var content = new FormUrlEncodedContent(new Dictionary<string, string> { { "grant_type", "client_credentials" } });
-        var authResponse = await RedditHttpClient.PostAsync(Config.AccessTokenUrl, content);
+        var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{UserSecret.RedditClientId}:{UserSecret.RedditSecret}"));
+        RedditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
+        
+        var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            { "grant_type", "authorization_code" },
+            { "code", authorizationCode },
+            { "redirect_uri", "https://localhost:7018/redditRedirect" }
+        });
+        
+        var authResponse = await RedditHttpClient.PostAsync(Config.RedditAccessTokenUrl, content);
         
         if (authResponse.StatusCode == HttpStatusCode.OK)
             return await authResponse.Content.ReadFromJsonAsync<OauthToken>();
@@ -29,21 +36,22 @@ public abstract class RedditPoster
         throw new HttpRequestException("Failed to authenticate with Reddit");
     }
 
-    public static async Task<bool> SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
+    public static async Task SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
     {
         RedditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", oauthToken.AccessToken);
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "api_type", "json" },
+            { "sendreplies", "false" },
+            { "resubmit", "true" },
+            { "title", videoFeed.Entry.Title },
             { "kind", "link" },
             { "sr", "test" },
-            { "title", videoFeed.Entry.Title },
             { "url", videoFeed.Entry.Link.Href }
         });
-        
-        var response = await RedditHttpClient.PostAsync(Config.SubmitUrl, content);
+        var response = await RedditHttpClient.PostAsync(Config.RedditSubmitUrl, content);
         var submitResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
-
+        
         if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0)
         {
             foreach (var error in submitResponse.Details.Errors)
@@ -56,6 +64,5 @@ public abstract class RedditPoster
         }
         
         Console.WriteLine("Successfully submitted video to Reddit");
-        return true;
     }
 }
