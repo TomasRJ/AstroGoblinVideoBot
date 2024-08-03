@@ -4,14 +4,17 @@ namespace AstroGoblinVideoBot.Model;
 
 public readonly struct Config
 {
-    [JsonPropertyName("AccessTokenUrl")]
-    public string AccessTokenUrl { get; init; }
+    [JsonPropertyName("RedditAuthorizeUrl")]
+    public string RedditAuthorizeUrl { get; init; }
     
-    [JsonPropertyName("SubmitUrl")]
-    public string SubmitUrl { get; init; }
+    [JsonPropertyName("RedditAccessTokenUrl")]
+    public string RedditAccessTokenUrl { get; init; }
     
-    [JsonPropertyName("UserAgent")]
-    public string UserAgent { get; init; }
+    [JsonPropertyName("RedditSubmitUrl")]
+    public string RedditSubmitUrl { get; init; }
+    
+    [JsonPropertyName("RedditUserAgent")]
+    public string RedditUserAgent { get; init; }
     
     [JsonPropertyName("Subreddit")]
     public string Subreddit { get; init; }
