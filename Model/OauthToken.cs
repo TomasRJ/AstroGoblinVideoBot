@@ -15,4 +15,7 @@ public readonly struct OauthToken
     
     [JsonPropertyName("scope")]
     public string Scope { get; init; }
+    
+    [JsonPropertyName("refresh_token")]
+    public string RefreshToken { get; init; }
 }
