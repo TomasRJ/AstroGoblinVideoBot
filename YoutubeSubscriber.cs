@@ -43,10 +43,10 @@ public abstract class YoutubeSubscriber
     
     public static bool SignatureExists(string? signature, HttpContext httpContext)
     {
-        if (signature != null) return false;
+        if (signature != null) return true;
         Console.WriteLine("Missing signature");
         httpContext.Response.StatusCode = 400;
-        return true;
+        return false;
     }
 
     public static bool SignatureFormatCheck(string? signature, HttpContext httpContext, out string[] strings)
