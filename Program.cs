@@ -10,7 +10,7 @@ var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>(optional:fal
 
 await YoutubeSubscriber.SubscribeToChannel();
 
-var oauthToken = await RedditPoster.GetOauthToken();
+var oauthToken = new OauthToken();
 
 app.MapGet("/youtube", async youtubeVerify =>
 {
@@ -23,16 +23,36 @@ app.MapGet("/youtube", async youtubeVerify =>
     {
         youtubeVerify.Response.ContentType = "text/plain";
         await youtubeVerify.Response.WriteAsync(challenge!);
+        return;
     }
-    else
-        youtubeVerify.Response.StatusCode = 400;
+    youtubeVerify.Response.StatusCode = 400;
+});
+
+app.MapGet("/redditRedirect",async redditRedirect =>
+{
+    var query = redditRedirect.Request.Query;
+    var code = query.ContainsKey("code") ? query["code"].ToString() : throw new InvalidOperationException();
+    var state = query.ContainsKey("state") ? query["state"].ToString() : throw new InvalidOperationException();
+    
+    if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state) || query.ContainsKey("error"))
+    {
+        Console.WriteLine("Got following error: " + query["error"]);
+        return;
+    }
+    oauthToken = await RedditPoster.GetOauthToken(code);
 });
 
 app.MapPost("/youtube", async youtubeRequest =>
 {
+    if (oauthToken.AccessToken == null)
+    {
+        Console.WriteLine("Reddit OAuth token not found");
+        return;
+    }
+    
     var headers = youtubeRequest.Request.Headers;
     var signatureHeader = headers["X-Hub-Signature"].FirstOrDefault();
-
+    
     if (!YoutubeSubscriber.SignatureExists(signatureHeader, youtubeRequest)) return;
     
     if (!YoutubeSubscriber.SignatureFormatCheck(signatureHeader, youtubeRequest, out var signatureParts)) return;
@@ -45,7 +65,7 @@ app.MapPost("/youtube", async youtubeRequest =>
     if (!YoutubeSubscriber.VerifySignature(requestBody.ToArray(), userSecret.HmacSecret, signature))
     {
         Console.WriteLine("Invalid signature");
-        youtubeRequest.Response.StatusCode = 400;
+        youtubeRequest.Response.StatusCode = 200;
         return;
     }
     
