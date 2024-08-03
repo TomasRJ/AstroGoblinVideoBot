@@ -1,7 +1,9 @@
 ﻿{
-  "AccessTokenUrl": "https://www.reddit.com/api/v1/access_token",
-  "SubmitUrl": "https://oauth.reddit.com/api/submit",
-  "UserAgent": "AstroGoblinVideoBot v1.0 by u/AstroGoblinVideoBot",
+  "RedditAuthorizeUrl": "https://www.reddit.com/api/v1/authorize",
+  "RedditAccessTokenUrl": "https://www.reddit.com/api/v1/access_token",
+  "RedditSubmitUrl": "https://oauth.reddit.com/api/submit",
+  "RedditUserAgent": "AstroGoblinVideoBot v1.0 by u/AstroGoblinVideoBot",
+  "RedditRefreshTimestamp": 1722695205,
   "Subreddit": "astrogoblin",
   "GooglePubSubUrl": "https://pubsubhubbub.appspot.com/subscribe",
   "GooglePubSubTopic": "https://www.youtube.com/xml/feeds/videos.xml?channel_id=UCRb4V8WHojbGqEvzL_9g03Q"
