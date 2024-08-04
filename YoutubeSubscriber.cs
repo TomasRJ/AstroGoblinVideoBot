@@ -7,7 +7,7 @@ namespace AstroGoblinVideoBot;
 public abstract class YoutubeSubscriber
 {
     private static readonly Config Config = new ConfigurationBuilder().AddJsonFile("config.json", optional:false).Build().Get<Config>();
-    private static readonly Credentials UserSecret = new ConfigurationBuilder().AddUserSecrets<RedditPoster>(optional:false).Build().Get<Credentials>();
+    private static readonly Credentials UserSecret = new ConfigurationBuilder().AddUserSecrets<YoutubeSubscriber>(optional:false).Build().Get<Credentials>();
     private static readonly HttpClient YoutubeHttpClient = new();
     
     public static async Task<bool> SubscribeToChannel()
@@ -37,8 +37,8 @@ public abstract class YoutubeSubscriber
     {
         var hmac = new HMACSHA1(Encoding.UTF8.GetBytes(secret));
         var hashBytes = hmac.ComputeHash(payload);
-        var hashString = Convert.ToBase64String(hashBytes);
-        return hashString.Equals(signature);
+        var hashString = Convert.ToHexString(hashBytes);
+        return hashString.Equals(signature.ToUpper());
     }
     
     public static bool SignatureExists(string? signature, HttpContext httpContext)
