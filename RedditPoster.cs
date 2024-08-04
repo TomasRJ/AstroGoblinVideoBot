@@ -21,7 +21,7 @@ public abstract class RedditPoster
         {
             { "grant_type", "authorization_code" },
             { "code", authorizationCode },
-            { "redirect_uri", "https://localhost:7018/redditRedirect" }
+            { "redirect_uri", UserSecret.RedditRedirectUrl }
         });
         
         var authResponse = await RedditHttpClient.PostAsync(Config.RedditAccessTokenUrl, content);
