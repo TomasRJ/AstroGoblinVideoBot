@@ -8,7 +8,9 @@ var app = builder.Build();
 var config = new ConfigurationBuilder().AddJsonFile("config.json", optional:false).Build().Get<Config>();
 var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>(optional:false).Build().Get<Credentials>();
 
-await YoutubeSubscriber.SubscribeToChannel();
+var isSubscribed = await YoutubeSubscriber.SubscribeToChannel();
+if (!isSubscribed)
+    throw new HttpRequestException("Failed to subscribe to Youtube channel");
 
 var oauthToken = new OauthToken();
 
@@ -84,7 +86,6 @@ app.MapPost("/youtube", async youtubeRequest =>
     var isSubmitted = await RedditPoster.SubmitVideo(oauthToken, videoFeed);
     if (!isSubmitted)
         throw new HttpRequestException("Failed to submit video to Reddit");
-    
 });
 
 await app.RunAsync();
