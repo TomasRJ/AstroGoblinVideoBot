@@ -40,15 +40,22 @@ app.MapGet("/redditRedirect",async redditRedirect =>
         return;
     }
     oauthToken = await RedditPoster.GetOauthToken(code);
+    Console.WriteLine("Reddit OAuth token received");
+    redditRedirect.Response.StatusCode = 200;
 });
 
 app.MapPost("/youtube", async youtubeRequest =>
 {
-    if (oauthToken.AccessToken == null)
+    if (oauthToken.AccessToken == null || !RedditPoster.OathTokenFileExists(out oauthToken))
     {
         Console.WriteLine("Reddit OAuth token not found");
         return;
     }
+
+    if (RedditPoster.IsTokenExpired())
+        oauthToken = await RedditPoster.GetNewOathToken(oauthToken.RefreshToken);
+
+    #region SignatureVerification
     
     var headers = youtubeRequest.Request.Headers;
     var signatureHeader = headers["X-Hub-Signature"].FirstOrDefault();
@@ -68,12 +75,16 @@ app.MapPost("/youtube", async youtubeRequest =>
         youtubeRequest.Response.StatusCode = 200;
         return;
     }
-    
+    #endregion
+
     requestBody.Position = 0;
     var serializer = new XmlSerializer(typeof(VideoFeed));
     var videoFeed = (VideoFeed) (serializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
     
-    await RedditPoster.SubmitVideo(oauthToken, videoFeed);
+    var isSubmitted = await RedditPoster.SubmitVideo(oauthToken, videoFeed);
+    if (!isSubmitted)
+        throw new HttpRequestException("Failed to submit video to Reddit");
+    
 });
 
 await app.RunAsync();
