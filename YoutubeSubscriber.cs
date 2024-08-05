@@ -4,56 +4,65 @@ using AstroGoblinVideoBot.Model;
 
 namespace AstroGoblinVideoBot;
 
-public abstract class YoutubeSubscriber
+public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger logger)
 {
-    private static readonly Config Config = new ConfigurationBuilder().AddJsonFile("config.json", optional:false).Build().Get<Config>();
-    private static readonly Credentials UserSecret = new ConfigurationBuilder().AddUserSecrets<YoutubeSubscriber>(optional:false).Build().Get<Credentials>();
-    private static readonly HttpClient YoutubeHttpClient = new();
+    private readonly HttpClient _youtubeHttpClient = new();
     
-    public static async Task<bool> SubscribeToChannel()
+    public async Task<bool> SubscribeToChannel()
     {
         var subscribeForm = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            { "hub.callback", UserSecret.CallbackUrl },
+            { "hub.callback", userSecret.CallbackUrl },
             { "hub.mode", "subscribe" },
-            { "hub.topic", Config.GooglePubSubTopic },
+            { "hub.topic", config.GooglePubSubTopic },
             { "hub.verify", "async" },
-            { "hub.secret", UserSecret.HmacSecret }
+            { "hub.secret", userSecret.HmacSecret }
         });
-        var subscribeResponse = await YoutubeHttpClient.PostAsync(Config.GooglePubSubUrl, subscribeForm);
+        
+        var subscribeResponse = await _youtubeHttpClient.PostAsync(config.GooglePubSubUrl, subscribeForm);
         if (subscribeResponse.IsSuccessStatusCode)
         {
-            Console.WriteLine("Successfully subscribed to Youtube channel");
+            logger.LogInformation("Successfully subscribed to Youtube channel");
             return true;
         }
         
-        Console.WriteLine("Failed to subscribe to Youtube channel");
         var responseContent = await subscribeResponse.Content.ReadAsStringAsync();
-        Console.WriteLine(responseContent);
+        logger.LogError("Failed to subscribe to Youtube channel, got following error: {Content}",  responseContent);
+
         return false;
     }
 
-    public static bool VerifySignature(byte[] payload, string secret, string signature)
+    public bool VerifySignature(byte[] payload, string secret, string signature)
     {
         var hmac = new HMACSHA1(Encoding.UTF8.GetBytes(secret));
         var hashBytes = hmac.ComputeHash(payload);
         var hashString = Convert.ToHexString(hashBytes);
-        return hashString.Equals(signature.ToUpper());
+        if (hashString.Equals(signature.ToUpper()))
+        {
+           logger.LogInformation("Signature verified");
+           return true;
+        }
+        logger.LogError("Signature verification failed, expected {Expected} but got {Actual}", hashString, signature.ToUpper());
+        return false;
     }
     
-    public static bool SignatureExists(string? signature, HttpContext httpContext)
+    public bool SignatureExists(string? signature, HttpContext httpContext)
     {
-        if (signature != null) return true;
-        Console.WriteLine("Missing signature");
+        if (signature != null)
+        {
+            logger.LogInformation("The X-Hub-Signature exists");
+            return true;
+        }
+        logger.LogError("Signature not found");
         httpContext.Response.StatusCode = 400;
         return false;
     }
 
-    public static bool SignatureFormatCheck(string? signature, HttpContext httpContext, out string[] strings)
+    public bool SignatureFormatCheck(string? signature, HttpContext httpContext, out string[] strings)
     {
         strings = signature!.Split('=');
         if (strings is ["sha1", _]) return false;
-        Console.WriteLine("Invalid signature format");
+        logger.LogError("Invalid X-Hub-Signature format, expected 'sha1=hash', got {Signature}", signature);
         httpContext.Response.StatusCode = 400;
         return true;
     }

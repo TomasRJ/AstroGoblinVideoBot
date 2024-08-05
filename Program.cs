@@ -1,21 +1,29 @@
-using System.Xml.Serialization;
 using AstroGoblinVideoBot;
 using AstroGoblinVideoBot.Model;
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
+var logger = app.Logger;
 
 var config = new ConfigurationBuilder().AddJsonFile("config.json", optional:false).Build().Get<Config>();
 var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>(optional:false).Build().Get<Credentials>();
 
-var isSubscribed = await YoutubeSubscriber.SubscribeToChannel();
+var youtubeSubscriber = new YoutubeSubscriber(userSecret, config, logger);
+var redditPoster = new RedditPoster(userSecret, config, logger);
+
+var isSubscribed = await youtubeSubscriber.SubscribeToChannel();
 if (!isSubscribed)
-    throw new HttpRequestException("Failed to subscribe to Youtube channel");
+{
+    logger.LogError("Failed to subscribe to Youtube channel");
+    return;
+}
 
 var oauthToken = new OauthToken();
 
 app.MapGet("/youtube", async youtubeVerify =>
 {
+    logger.LogInformation("Youtube verification request received");
+    
     var query = youtubeVerify.Request.Query;
     var topic = query["hub.topic"];
     var challenge = query["hub.challenge"];
@@ -25,67 +33,33 @@ app.MapGet("/youtube", async youtubeVerify =>
     {
         youtubeVerify.Response.ContentType = "text/plain";
         await youtubeVerify.Response.WriteAsync(challenge!);
+        logger.LogInformation("Youtube verification successful");
         return;
     }
     youtubeVerify.Response.StatusCode = 400;
+    logger.LogInformation("Youtube verification failed");
 });
 
 app.MapGet("/redditRedirect",async redditRedirect =>
 {
+    logger.LogInformation("Reddit redirect request received");
+    
     var query = redditRedirect.Request.Query;
     var code = query.ContainsKey("code") ? query["code"].ToString() : throw new InvalidOperationException();
     var state = query.ContainsKey("state") ? query["state"].ToString() : throw new InvalidOperationException();
     
     if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state) || query.ContainsKey("error"))
     {
-        Console.WriteLine("Got following error: " + query["error"]);
+        logger.LogError("Got the following error from Reddit: {Error}", query["error"]!);
         return;
     }
-    oauthToken = await RedditPoster.GetOauthToken(code);
-    Console.WriteLine("Reddit OAuth token received");
+    oauthToken = await redditPoster.GetOauthToken(code);
     redditRedirect.Response.StatusCode = 200;
 });
 
-app.MapPost("/youtube", async youtubeRequest =>
+app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
-    if (oauthToken.AccessToken == null || !RedditPoster.OathTokenFileExists(out oauthToken))
-    {
-        Console.WriteLine("Reddit OAuth token not found");
-        return;
-    }
-
-    if (RedditPoster.IsTokenExpired())
-        oauthToken = await RedditPoster.GetNewOathToken(oauthToken.RefreshToken);
-
-    #region SignatureVerification
-    
-    var headers = youtubeRequest.Request.Headers;
-    var signatureHeader = headers["X-Hub-Signature"].FirstOrDefault();
-    
-    if (!YoutubeSubscriber.SignatureExists(signatureHeader, youtubeRequest)) return;
-    
-    if (!YoutubeSubscriber.SignatureFormatCheck(signatureHeader, youtubeRequest, out var signatureParts)) return;
-    var signature = signatureParts[1];
-    
-    var requestBody = new MemoryStream();
-    await youtubeRequest.Request.Body.CopyToAsync(requestBody);
-    requestBody.Position = 0;
-    
-    if (!YoutubeSubscriber.VerifySignature(requestBody.ToArray(), userSecret.HmacSecret, signature))
-    {
-        Console.WriteLine("Invalid signature");
-        youtubeRequest.Response.StatusCode = 200;
-        return;
-    }
-    #endregion
-
-    requestBody.Position = 0;
-    var serializer = new XmlSerializer(typeof(VideoFeed));
-    var videoFeed = (VideoFeed) (serializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
-    
-    var isSubmitted = await RedditPoster.SubmitVideo(oauthToken, videoFeed);
-    if (!isSubmitted)
-        throw new HttpRequestException("Failed to submit video to Reddit");
+   await redditPoster.PostVideoToReddit(youtubeSubscriptionRequest, youtubeSubscriber, oauthToken);
 });
 
 await app.RunAsync();
