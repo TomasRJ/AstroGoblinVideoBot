@@ -61,9 +61,13 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
     public bool SignatureFormatCheck(string? signature, HttpContext httpContext, out string[] strings)
     {
         strings = signature!.Split('=');
-        if (strings is ["sha1", _]) return false;
+        if (strings is ["sha1", _])
+        {
+            logger.LogInformation("X-Hub-Signature format is correct");
+            return true;
+        }
         logger.LogError("Invalid X-Hub-Signature format, expected 'sha1=hash', got {Signature}", signature);
         httpContext.Response.StatusCode = 400;
-        return true;
+        return false;
     }
 }

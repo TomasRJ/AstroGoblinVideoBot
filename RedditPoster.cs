@@ -30,7 +30,7 @@ public class RedditPoster
             _logger.LogError("Reddit Oauth token not found / does not exist");
             return;
         }
-
+        
         if (IsTokenExpired())
             oauthToken = await GetNewOathToken(oauthToken.RefreshToken);
         
