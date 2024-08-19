@@ -10,19 +10,19 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
     
     public async Task<bool> SubscribeToChannel()
     {
+        logger.LogInformation("Subscribing to Youtube channel: {Channel}", config.GooglePubSubTopic);
         var subscribeForm = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            { "hub.callback", userSecret.CallbackUrl },
+            { "hub.callback", userSecret.YoutubeCallbackUrl },
             { "hub.mode", "subscribe" },
             { "hub.topic", config.GooglePubSubTopic },
-            { "hub.verify", "async" },
             { "hub.secret", userSecret.HmacSecret }
         });
         
         var subscribeResponse = await _youtubeHttpClient.PostAsync(config.GooglePubSubUrl, subscribeForm);
         if (subscribeResponse.IsSuccessStatusCode)
         {
-            logger.LogInformation("Successfully subscribed to Youtube channel");
+            logger.LogInformation("Successfully sent subscription request Google PubSubHubbub, now waiting for verification");
             return true;
         }
         
@@ -39,10 +39,10 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
         var hashString = Convert.ToHexString(hashBytes);
         if (hashString.Equals(signature.ToUpper()))
         {
-           logger.LogInformation("Signature verified");
+           logger.LogInformation("The Google PubSubHubbub post request HMAC signature verified");
            return true;
         }
-        logger.LogError("Signature verification failed, expected {Expected} but got {Actual}", hashString, signature.ToUpper());
+        logger.LogError("The Google PubSubHubbub post request HMAC signature verification failed, expected {Expected} but got {Actual}", hashString, signature.ToUpper());
         return false;
     }
     
