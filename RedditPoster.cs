@@ -25,14 +25,14 @@ public class RedditPoster
     public async Task PostVideoToReddit(HttpContext youtubeRequest, YoutubeSubscriber youtubeSubscriber, OauthToken oauthToken)
     {
         _logger.LogInformation("Youtube subscription request received");
-        if (string.IsNullOrEmpty(oauthToken.AccessToken) || !OathTokenFileExists(out oauthToken))
+        if (string.IsNullOrEmpty(oauthToken.AccessToken) || !RedditOathTokenFileExist(out oauthToken))
         {
             _logger.LogError("Reddit Oauth token not found / does not exist");
             return;
         }
         
         if (IsTokenExpired())
-            oauthToken = await GetNewOathToken(oauthToken.RefreshToken);
+            oauthToken = await RefreshRedditOathToken(oauthToken.RefreshToken);
         
         var requestBody = new MemoryStream();
         await youtubeRequest.Request.Body.CopyToAsync(requestBody);
@@ -62,7 +62,7 @@ public class RedditPoster
         if (youtubeSubscriber.VerifySignature(requestBody.ToArray(), _userSecret.HmacSecret, signature))
             return true;
         
-        youtubeRequest.Response.StatusCode = 200;
+        youtubeRequest.Response.StatusCode = 200; // The Google PubSubHubbub protocol requires a 200 response even if the signature is invalid
         return false;
     }
 
@@ -83,13 +83,43 @@ public class RedditPoster
         {
             var oauthToken = await authResponse.Content.ReadFromJsonAsync<OauthToken>();
             _logger.LogInformation("Successfully got Oauth token from Reddit");
-            WriteOauthToken(oauthToken);
+            await WriteOauthToken(oauthToken);
             return oauthToken;
         }
         
         var responseContent = await authResponse.Content.ReadAsStringAsync();
         _logger.LogError("Failed to get Oauth token from Reddit, got the following response: {Response}", responseContent);
         return new OauthToken();
+    }
+    private const string AuthorizeFormPath = "authorizeForm.json";
+    public async Task AuthorizeForm(HttpContext redditRedirect, string stateString)
+    {
+        var authorizeFormJson = await File.ReadAllTextAsync(AuthorizeFormPath);
+        var authorizeForm = JsonSerializer.Deserialize<RedditAuthorizeForm>(authorizeFormJson);
+        if (authorizeForm is null)
+        {
+            _logger.LogError("Failed to deserialize authorizeForm.json");
+            return;
+        }
+        
+        byte[] bodyText;
+        if (authorizeForm.StateString!.Equals(stateString))
+        {
+            bodyText = "Authorization successful and state matches"u8.ToArray();
+            await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
+            
+            File.Delete(AuthorizeFormPath);
+            _logger.LogInformation("Authorization successful and state matches");
+            
+            return;
+        }
+        
+        _logger.LogError("The state string from reddit does not does not match the state string from the authorization form");
+        bodyText = "State does not match"u8.ToArray();
+        await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
+        
+        redditRedirect.Response.StatusCode = 400;
+        File.Delete(AuthorizeFormPath);
     }
     
     private async Task SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
@@ -103,20 +133,24 @@ public class RedditPoster
             { "resubmit", "true" },
             { "title", videoFeed.Entry.Title },
             { "kind", "link" },
-            { "sr", "test" },
+            { "sr",  _config.Subreddit },
             { "url", videoFeed.Entry.Link.Href }
         });
         var response = await _redditHttpClient.PostAsync(_config.RedditSubmitUrl, content);
         var submitResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
         
         if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0)
-            _logger.LogError("Failed to submit video to Reddit, got the following response: {Errors}", submitResponse.Details.Errors);
+        {
+            _logger.LogError("Failed to submit video to Reddit, got the following response: {Errors}",
+                submitResponse.Details.Errors);
+            return;
+        }
         
         _logger.LogInformation("Successfully submitted video to Reddit");
     }
-    private async Task<OauthToken> GetNewOathToken (string refreshToken)
+    private async Task<OauthToken> RefreshRedditOathToken (string refreshToken)
     {
-        _logger.LogInformation("Getting new Oauth token from Reddit");
+        _logger.LogInformation("Refreshing the Reddit Oauth token");
         SetBasicAuthHeader();
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -129,14 +163,14 @@ public class RedditPoster
         if (authResponse.StatusCode == HttpStatusCode.OK)
         {
             var oauthToken = await authResponse.Content.ReadFromJsonAsync<OauthToken>();
-            WriteOauthToken(oauthToken);
-            _logger.LogInformation("Successfully got new Oauth token from Reddit");
+            await WriteOauthToken(oauthToken);
+            _logger.LogInformation("Successfully got refreshed Reddit Oauth token.");
             return oauthToken;
         }
         
         
         var responseContent = await authResponse.Content.ReadAsStringAsync();
-        _logger.LogError("Failed to get refresh token from Reddit, got the following response: {Response}", responseContent);
+        _logger.LogError("Failed to refresh the Reddit Oauth token, got the following response: {Response}", responseContent);
         return new OauthToken();
     }
     
@@ -149,20 +183,20 @@ public class RedditPoster
     private const string RefreshTokenDetailsFilename = "refreshTokenDetails.json";
     private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
     
-    private void WriteOauthToken(OauthToken oauthToken)
+    private async Task WriteOauthToken(OauthToken oauthToken)
     {
         var oauthTokenJson = JsonSerializer.Serialize(oauthToken, SerializerOptions);
-        File.WriteAllText("redditOathToken.json", oauthTokenJson, Encoding.UTF8);
+        await File.WriteAllTextAsync("redditOathToken.json", oauthTokenJson, Encoding.UTF8);
         _logger.LogInformation("Successfully wrote Oauth token to file");
         
         var expireTimestamp = DateTimeOffset.UtcNow.AddSeconds(oauthToken.ExpiresIn).ToUnixTimeSeconds();
         var refreshTokenDetails = new RefreshTimestamp { Timestamp = expireTimestamp };
         var refreshTokenDetailsJson = JsonSerializer.Serialize(refreshTokenDetails, SerializerOptions);
-        File.WriteAllText(RefreshTokenDetailsFilename, refreshTokenDetailsJson, Encoding.UTF8);
+        await File.WriteAllTextAsync(RefreshTokenDetailsFilename, refreshTokenDetailsJson, Encoding.UTF8);
         _logger.LogInformation("Successfully wrote refresh token details to file");
     }
     
-    private bool OathTokenFileExists(out OauthToken oauthToken)
+    private bool RedditOathTokenFileExist(out OauthToken oauthToken)
     {
         if (!File.Exists("redditOathToken.json")) 
         {

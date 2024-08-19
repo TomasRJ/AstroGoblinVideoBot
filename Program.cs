@@ -2,6 +2,8 @@ using AstroGoblinVideoBot;
 using AstroGoblinVideoBot.Model;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddRazorPages().WithRazorPagesRoot("/Frontend");
+
 var app = builder.Build();
 var logger = app.Logger;
 
@@ -13,16 +15,13 @@ var redditPoster = new RedditPoster(userSecret, config, logger);
 
 var isSubscribed = await youtubeSubscriber.SubscribeToChannel();
 if (!isSubscribed)
-{
-    logger.LogError("Failed to subscribe to Youtube channel");
     return;
-}
 
 var oauthToken = new OauthToken();
 
 app.MapGet("/youtube", async youtubeVerify =>
 {
-    logger.LogInformation("Youtube verification request received");
+    logger.LogInformation("Google PubSubHubbub verification request received");
     
     var query = youtubeVerify.Request.Query;
     var topic = query["hub.topic"];
@@ -33,7 +32,7 @@ app.MapGet("/youtube", async youtubeVerify =>
     {
         youtubeVerify.Response.ContentType = "text/plain";
         await youtubeVerify.Response.WriteAsync(challenge!);
-        logger.LogInformation("Youtube verification successful");
+        logger.LogInformation("Google PubSubHubbub verification successful, now successfully subscribed to the Youtube channel");
         return;
     }
     youtubeVerify.Response.StatusCode = 400;
@@ -50,10 +49,20 @@ app.MapGet("/redditRedirect",async redditRedirect =>
     
     if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state) || query.ContainsKey("error"))
     {
-        logger.LogError("Got the following error from Reddit: {Error}", query["error"]!);
+        logger.LogError("Got the following error from Reddit: {Error}", query["error"]);
         return;
     }
+    
     oauthToken = await redditPoster.GetOauthToken(code);
+    
+    if(File.Exists("authorizeForm.json"))
+    {
+        await redditPoster.AuthorizeForm(redditRedirect, state);
+        return;
+    }
+    
+    var bodyText = "Authorization successful, but no authorizeForm.json found, but the bot should still work."u8.ToArray();
+    await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
     redditRedirect.Response.StatusCode = 200;
 });
 
@@ -61,5 +70,7 @@ app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
    await redditPoster.PostVideoToReddit(youtubeSubscriptionRequest, youtubeSubscriber, oauthToken);
 });
+
+app.MapRazorPages();
 
 await app.RunAsync();
