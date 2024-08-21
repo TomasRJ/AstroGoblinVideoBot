@@ -3,9 +3,15 @@ using AstroGoblinVideoBot.Model;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages().WithRazorPagesRoot("/Frontend");
+builder.Services.AddHttpLogging(o => { });
 
 var app = builder.Build();
 var logger = app.Logger;
+app.MapRazorPages();
+app.UseCertificateForwarding();
+app.UseAntiforgery();
+app.UseHttpLogging();
+app.UseStatusCodePages();
 
 var config = new ConfigurationBuilder().AddJsonFile("config.json", optional:false).Build().Get<Config>();
 var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>(optional:false).Build().Get<Credentials>();
@@ -49,7 +55,7 @@ app.MapGet("/redditRedirect",async redditRedirect =>
     
     if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state) || query.ContainsKey("error"))
     {
-        logger.LogError("Got the following error from Reddit: {Error}", query["error"]);
+        logger.LogError("Got the following error from Reddit: {Error}", query["error"]!);
         return;
     }
     
@@ -68,9 +74,7 @@ app.MapGet("/redditRedirect",async redditRedirect =>
 
 app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
-   await redditPoster.PostVideoToReddit(youtubeSubscriptionRequest, youtubeSubscriber, oauthToken);
+    await redditPoster.PostVideoToReddit(youtubeSubscriptionRequest, youtubeSubscriber, oauthToken);
 });
-
-app.MapRazorPages();
 
 await app.RunAsync();
