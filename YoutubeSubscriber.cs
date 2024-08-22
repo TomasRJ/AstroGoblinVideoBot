@@ -34,12 +34,15 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
 
     public bool VerifySignature(byte[] payload, string secret, string signature)
     {
+        logger.LogInformation("Verifying Google PubSubHubbub post request HMAC signature: {Signature}", signature.ToUpper());
         var hmac = new HMACSHA1(Encoding.UTF8.GetBytes(secret));
         var hashBytes = hmac.ComputeHash(payload);
         var hashString = Convert.ToHexString(hashBytes);
+        logger.LogInformation("The calculated HMAC signature is: {HashString}", hashString);
+        
         if (hashString.Equals(signature.ToUpper()))
         {
-           logger.LogInformation("The Google PubSubHubbub post request HMAC signature verified");
+           logger.LogInformation("The Google PubSubHubbub post request HMAC signature is valid");
            return true;
         }
         logger.LogError("The Google PubSubHubbub post request HMAC signature verification failed, expected {Expected} but got {Actual}", hashString, signature.ToUpper());
@@ -53,7 +56,7 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
             logger.LogInformation("The X-Hub-Signature exists");
             return true;
         }
-        logger.LogError("Signature not found");
+        logger.LogError("The X-Hub-Signature not found");
         httpContext.Response.StatusCode = 400;
         return false;
     }
@@ -63,7 +66,7 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
         strings = signature!.Split('=');
         if (strings is ["sha1", _])
         {
-            logger.LogInformation("X-Hub-Signature format is correct");
+            logger.LogInformation("The X-Hub-Signature format is correct");
             return true;
         }
         logger.LogError("Invalid X-Hub-Signature format, expected 'sha1=hash', got {Signature}", signature);
