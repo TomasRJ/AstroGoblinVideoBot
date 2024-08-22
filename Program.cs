@@ -30,24 +30,25 @@ if (!isSubscribed)
 
 var oauthToken = new OauthToken();
 
-app.MapGet("/youtube", async youtubeVerify =>
+app.MapGet("/youtube", async pubSubHubbub =>
 {
-    logger.LogInformation("Google PubSubHubbub verification request received");
-    
-    var query = youtubeVerify.Request.Query;
+    logger.LogInformation("Got Google PubSubHubbub request with the following query: {Query}", pubSubHubbub.Request.QueryString);
+    var query = pubSubHubbub.Request.Query;
     var topic = query["hub.topic"];
     var challenge = query["hub.challenge"];
     var mode = query["hub.mode"];
     
     if (!string.IsNullOrEmpty(challenge) && mode.Equals("subscribe") && topic.Equals(config.GooglePubSubTopic))
     {
-        youtubeVerify.Response.ContentType = "text/plain";
-        await youtubeVerify.Response.WriteAsync(challenge!);
+        logger.LogInformation("Google PubSubHubbub verification request received");
+        pubSubHubbub.Response.ContentType = "text/plain";
+        await pubSubHubbub.Response.WriteAsync(challenge!);
         logger.LogInformation("Google PubSubHubbub verification successful, now successfully subscribed to the Youtube channel");
         return;
     }
-    youtubeVerify.Response.StatusCode = 400;
-    logger.LogInformation("Youtube verification failed");
+    
+    logger.LogInformation("Got unknown Google PubSubHubbub request");
+    pubSubHubbub.Response.StatusCode = 200;
 });
 
 app.MapGet("/redditRedirect",async redditRedirect =>
