@@ -1,12 +1,17 @@
 using AstroGoblinVideoBot;
 using AstroGoblinVideoBot.Model;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages().WithRazorPagesRoot("/Frontend");
-builder.Services.AddHttpLogging(o => { });
+builder.Services.AddHttpLogging(_ => { });
 
 var app = builder.Build();
 var logger = app.Logger;
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 app.MapRazorPages();
 app.UseCertificateForwarding();
 app.UseAntiforgery();
