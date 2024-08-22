@@ -25,6 +25,13 @@ public class RedditPoster
     public async Task PostVideoToReddit(HttpContext youtubeRequest, YoutubeSubscriber youtubeSubscriber, OauthToken oauthToken)
     {
         _logger.LogInformation("Youtube subscription request received");
+        var requestBody = new MemoryStream();
+        await youtubeRequest.Request.Body.CopyToAsync(requestBody);
+        
+        if (!SignatureVerification(youtubeRequest, youtubeSubscriber, requestBody))
+            return;
+        youtubeRequest.Response.StatusCode = 200;
+        
         if (string.IsNullOrEmpty(oauthToken.AccessToken) || !RedditOathTokenFileExist(out oauthToken))
         {
             _logger.LogError("Reddit Oauth token not found / does not exist");
@@ -33,12 +40,6 @@ public class RedditPoster
         
         if (IsTokenExpired())
             oauthToken = await RefreshRedditOathToken(oauthToken.RefreshToken);
-        
-        var requestBody = new MemoryStream();
-        await youtubeRequest.Request.Body.CopyToAsync(requestBody);
-        
-        if (!SignatureVerification(youtubeRequest, youtubeSubscriber, requestBody))
-            return;
 
         requestBody.Position = 0;
         var serializer = new XmlSerializer(typeof(VideoFeed));
@@ -53,12 +54,12 @@ public class RedditPoster
         var signatureHeader = headers["X-Hub-Signature"].FirstOrDefault();
     
         if (!youtubeSubscriber.SignatureExists(signatureHeader, youtubeRequest)) return false;
-    
+        
         if (!youtubeSubscriber.SignatureFormatCheck(signatureHeader, youtubeRequest, out var signatureParts)) return false;
         var signature = signatureParts[1];
-
+        
         requestBody.Position = 0;
-
+        
         if (youtubeSubscriber.VerifySignature(requestBody.ToArray(), _userSecret.HmacSecret, signature))
             return true;
         
@@ -105,7 +106,7 @@ public class RedditPoster
         byte[] bodyText;
         if (authorizeForm.StateString!.Equals(stateString))
         {
-            bodyText = "Authorization successful and state matches"u8.ToArray();
+            bodyText = "Authorization successful and state matches. "u8.ToArray();
             await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
             
             File.Delete(AuthorizeFormPath);
@@ -224,10 +225,10 @@ public class RedditPoster
         
         if (refreshTokenDetails.Timestamp < DateTimeOffset.UtcNow.ToUnixTimeSeconds())
         {
-            _logger.LogError("The Reddit OAuth token has expired");
+            _logger.LogInformation("The Reddit OAuth token has expired");
             return true;
         }
-        _logger.LogInformation("Reddit OAuth token is still valid");
+        _logger.LogInformation("The Reddit OAuth token is still valid");
         return false;
     }
 }
