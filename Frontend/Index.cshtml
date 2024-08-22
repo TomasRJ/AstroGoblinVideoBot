@@ -34,31 +34,47 @@
         <p>The bot is currently running and will post a Reddit post when a new video is uploaded to the <a href="https://www.youtube.com/channel/UCRb4V8WHojbGqEvzL_9g03Q">AstroGoblin YouTube channel</a>.</p>
         <p>The form below can be used to authorize the bot to make Reddit posts on your behalf.</p>
     </article>
-    <div class="mt-5 mx-0 p-4 col-lg-4 col-md-6 container-sm border border-black rounded">
-        <form method="post">
-            <label for="FormClientId" class="form-label">Reddit Client ID</label>
-            <input type="text" id="FormClientId" asp-for="AuthorizeForm!.RedditClientId" class="form-control" required>
-            <label for="FormResponseType" class="form-label">Reddit Response Type</label>
-            <input type="text" id="FormResponseType" asp-for="AuthorizeForm!.RedditResponseType" class="form-control" value="code" readonly="readonly">
-            <label for="FormStateString" class="form-label">State string</label>
-            <div class="d-flex">
-                <input type="text" id="FormStateString" asp-for="AuthorizeForm!.StateString" class="form-control" required>
-                <button type="button" id="FormStateStringRefreshBtn" class="btn btn-secondary ms-1">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-            </div>
-            <label for="FormRedirectUrl" class="form-label">Reddit Redirect URL</label>
-            <input type="text" id="FormRedirectUrl" asp-for="AuthorizeForm!.RedirectUrl" class="form-control" required>
-            <label for="FormDuration" class="form-label">Duration of the authorization</label>
-            <select id="FormDuration" asp-for="AuthorizeForm!.Duration" class="form-select" required>
-                <option selected value="permanent">permanent</option>
-                <option value="temporary">temporary</option>
-            </select>
-            <label for="FormScope" class="form-label">Scope</label>
-            <input type="text" id="FormScope" asp-for="AuthorizeForm!.Scope" class="form-control" value="submit" readonly="readonly">
-            <button type="submit" id="FormSubmit" class="btn btn-primary mt-3">Open Link</button>
-        </form>
-    </div>
+    @if (!Model.IsAuthorized)
+    {
+        <div class="mt-5 mx-0 p-4 col-lg-4 col-md-6 container-sm border border-black rounded">
+            <h3>Unlock the form</h3>
+            <form method="post" asp-page-handler="Password">
+                <label for="Password" class="form-label">Password</label>
+                <input type="password" id="Password" asp-for="Password" class="form-control" required>
+                <button type="submit" class="btn btn-primary mt-3">Unlock</button>
+            </form>
+        </div>
+    }
+    else
+    {
+        <div class="mt-5 mx-0 p-4 col-lg-4 col-md-6 container-sm border border-black rounded">
+            <h3>Authorize to post on Reddit</h3>
+            <form method="post" asp-page-handler="RedditForm">
+                <input type="hidden" asp-for="AuthorizeForm!.IsAuthorized" value="true" />
+                <label for="FormClientId" class="form-label">Reddit Client ID</label>
+                <input type="text" id="FormClientId" asp-for="AuthorizeForm!.RedditClientId" class="form-control" required>
+                <label for="FormResponseType" class="form-label">Reddit Response Type</label>
+                <input type="text" id="FormResponseType" asp-for="AuthorizeForm!.RedditResponseType" class="form-control" value="code" readonly="readonly">
+                <label for="FormStateString" class="form-label">State string</label>
+                <div class="d-flex">
+                    <input type="text" id="FormStateString" asp-for="AuthorizeForm!.StateString" class="form-control" required>
+                    <button type="button" id="FormStateStringRefreshBtn" class="btn btn-secondary ms-1">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <label for="FormRedirectUrl" class="form-label">Reddit Redirect URL</label>
+                <input type="text" id="FormRedirectUrl" asp-for="AuthorizeForm!.RedirectUrl" class="form-control" required>
+                <label for="FormDuration" class="form-label">Duration of the authorization</label>
+                <select id="FormDuration" asp-for="AuthorizeForm!.Duration" class="form-select" required>
+                    <option selected value="permanent">permanent</option>
+                    <option value="temporary">temporary</option>
+                </select>
+                <label for="FormScope" class="form-label">Scope</label>
+                <input type="text" id="FormScope" asp-for="AuthorizeForm!.Scope" class="form-control" value="submit" readonly="readonly">
+                <button type="submit" id="FormSubmit" class="btn btn-primary mt-3">Open Link</button>
+            </form>
+        </div>
+    }
 </section>
 </body>
 </html>

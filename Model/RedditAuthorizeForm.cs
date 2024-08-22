@@ -5,6 +5,8 @@ namespace AstroGoblinVideoBot.Model;
 public class RedditAuthorizeForm
 {
     [Required]
+    public bool IsAuthorized { get; init; }
+    [Required]
     public string? RedditClientId { get; init; }
     public string? RedditResponseType { get; init; }
     [Required]
