@@ -1,30 +1,23 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+# Adjust DOTNET_OS_VERSION as desired
+ARG DOTNET_OS_VERSION="-alpine"
+ARG DOTNET_SDK_VERSION=8.0
 
-# This stage is used when running from VS in fast mode (Default for Debug configuration)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled-extra AS base
-USER app
-WORKDIR /app
-EXPOSE 8080
-EXPOSE 8081
-
-
-# This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:8.0-noble AS build
-ARG BUILD_CONFIGURATION=Release
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_SDK_VERSION}${DOTNET_OS_VERSION} AS build
 WORKDIR /src
-COPY ["AstroGoblinVideoBot.csproj", "."]
-RUN dotnet restore "./AstroGoblinVideoBot.csproj"
-COPY . .
-WORKDIR "/src/."
-RUN dotnet build "./AstroGoblinVideoBot.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-# This stage is used to publish the service project to be copied to the final stage
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./AstroGoblinVideoBot.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+# copy everything
+COPY . ./
+# restore as distinct layers
+RUN dotnet restore
+# build and publish a release
+RUN dotnet publish AstroGoblinVideoBot.csproj -c Release -o /app
 
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
-FROM base AS final
+# final stage/image
+FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_SDK_VERSION}
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 8080
 WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "AstroGoblinVideoBot.dll"]
+COPY --from=build /app .
+COPY secrets.json /app/secrets.json
+ENTRYPOINT [ "dotnet", "AstroGoblinVideoBot.dll" ]
