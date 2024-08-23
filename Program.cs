@@ -80,6 +80,9 @@ app.MapGet("/redditRedirect",async redditRedirect =>
 
 app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
+    if (youtubeSubscriptionRequest.Request.QueryString.HasValue)
+        logger.LogInformation("The Google PubSubHubbub subscription has the following query: {Query}", youtubeSubscriptionRequest.Request.QueryString);
+    
     await redditPoster.PostVideoToReddit(youtubeSubscriptionRequest, youtubeSubscriber, oauthToken);
 });
 

@@ -24,13 +24,16 @@ public class RedditPoster
     
     public async Task PostVideoToReddit(HttpContext youtubeRequest, YoutubeSubscriber youtubeSubscriber, OauthToken oauthToken)
     {
-        _logger.LogInformation("Youtube subscription request received");
+        _logger.LogInformation("Google PubSubHubbub subscription request received");
         var requestBody = new MemoryStream();
         await youtubeRequest.Request.Body.CopyToAsync(requestBody);
         
         if (!SignatureVerification(youtubeRequest, youtubeSubscriber, requestBody))
             return;
         youtubeRequest.Response.StatusCode = 200;
+        
+        requestBody.Position = 0;
+        await WriteBodyToFile(requestBody);
         
         if (string.IsNullOrEmpty(oauthToken.AccessToken) || !RedditOathTokenFileExist(out oauthToken))
         {
@@ -42,10 +45,18 @@ public class RedditPoster
             oauthToken = await RefreshRedditOathToken(oauthToken.RefreshToken);
 
         requestBody.Position = 0;
-        var serializer = new XmlSerializer(typeof(VideoFeed));
-        var videoFeed = (VideoFeed) (serializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
+        var xmlSerializer = new XmlSerializer(typeof(VideoFeed));
+        var videoFeed = (VideoFeed) (xmlSerializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
     
         await SubmitVideo(oauthToken, videoFeed);
+    }
+
+    private async Task WriteBodyToFile(MemoryStream requestBody)
+    {
+        var bodyText = await new StreamReader(requestBody).ReadToEndAsync();
+        var fileName = DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + ".xml";
+        await File.WriteAllTextAsync(fileName, bodyText, Encoding.UTF8);
+        _logger.LogInformation("Successfully wrote request body to file");
     }
 
     private bool SignatureVerification(HttpContext youtubeRequest, YoutubeSubscriber youtubeSubscriber, MemoryStream requestBody)
