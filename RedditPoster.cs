@@ -32,7 +32,8 @@ public class RedditPoster
             return;
         youtubeRequest.Response.StatusCode = 200;
         
-        await WriteBodyToFile(youtubeRequest.Request.Body);
+        requestBody.Position = 0;
+        await WriteBodyToFile(requestBody);
         
         if (string.IsNullOrEmpty(oauthToken.AccessToken) || !RedditOathTokenFileExist(out oauthToken))
         {
