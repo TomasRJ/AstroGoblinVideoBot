@@ -32,8 +32,7 @@ public class RedditPoster
             return;
         youtubeRequest.Response.StatusCode = 200;
         
-        requestBody.Position = 0;
-        await WriteBodyToFile(requestBody);
+        await WriteBodyToFile(youtubeRequest.Request.Body);
         
         if (string.IsNullOrEmpty(oauthToken.AccessToken) || !RedditOathTokenFileExist(out oauthToken))
         {
@@ -51,9 +50,9 @@ public class RedditPoster
         await SubmitVideo(oauthToken, videoFeed);
     }
 
-    private async Task WriteBodyToFile(MemoryStream requestBody)
+    private async Task WriteBodyToFile(Stream requestBody)
     {
-        var bodyText = await new StreamReader(requestBody).ReadToEndAsync();
+        var bodyText = await new StreamReader(requestBody, Encoding.UTF8).ReadToEndAsync();
         var fileName = DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + ".xml";
         await File.WriteAllTextAsync(fileName, bodyText, Encoding.UTF8);
         _logger.LogInformation("Successfully wrote request body to file");
