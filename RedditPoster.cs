@@ -141,13 +141,16 @@ public class RedditPoster
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "api_type", "json" },
-            { "sendreplies", "false" },
-            { "resubmit", "true" },
-            { "title", videoFeed.Entry.Title },
+            { "extension", "json" },
+            { "flair_id", _userSecret.SubmitFlairId },
             { "kind", "link" },
+            { "resubmit", "true" },
+            { "sendreplies", "false" },
             { "sr",  _config.Subreddit },
+            { "title", videoFeed.Entry.Title },
             { "url", videoFeed.Entry.Link.Href }
         });
+        
         var response = await _redditHttpClient.PostAsync(_config.RedditSubmitUrl, content);
         var submitResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
         
