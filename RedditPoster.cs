@@ -160,8 +160,16 @@ public class RedditPoster
                 submitResponse.Details.Errors);
             return;
         }
-        
-        _logger.LogInformation("Successfully submitted video to Reddit");
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        await WriteSubmitResponseToFile(responseString);
+    }
+    
+    private async Task WriteSubmitResponseToFile(string requestContent)
+    {
+        var fileName = DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + ".json";
+        await File.WriteAllTextAsync(fileName, requestContent, Encoding.UTF8);
+        _logger.LogInformation("Successfully wrote request body to file");
     }
     private async Task<OauthToken> RefreshRedditOathToken (string refreshToken)
     {
