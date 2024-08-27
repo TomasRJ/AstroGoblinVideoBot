@@ -29,6 +29,7 @@ if (!isSubscribed)
     return;
 
 var oauthToken = new OauthToken();
+var shutdownToken = app.Lifetime.ApplicationStopping;
 
 app.MapGet("/youtube", async pubSubHubbub =>
 {
@@ -51,7 +52,7 @@ app.MapGet("/youtube", async pubSubHubbub =>
         var leaseSecondsInt = int.Parse(leaseSeconds.ToString());
         await Task.Run(async () =>
         {
-            await Task.Delay(leaseSecondsInt * 1000);
+            await Task.Delay(leaseSecondsInt * 1000, shutdownToken);
             logger.LogInformation("Resubscribing to Google PubSubHubbub");
             await youtubeSubscriber.SubscribeToChannel();
         });
