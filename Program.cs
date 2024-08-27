@@ -32,11 +32,11 @@ var oauthToken = new OauthToken();
 
 app.MapGet("/youtube", async pubSubHubbub =>
 {
-    logger.LogInformation("Got Google PubSubHubbub request with the following query: {Query}", pubSubHubbub.Request.QueryString);
     var query = pubSubHubbub.Request.Query;
     var topic = query["hub.topic"];
     var challenge = query["hub.challenge"];
     var mode = query["hub.mode"];
+    var leaseSeconds = query["hub.lease_seconds"];
     
     if (!string.IsNullOrEmpty(challenge) && mode.Equals("subscribe") && topic.Equals(config.GooglePubSubTopic))
     {
@@ -44,6 +44,17 @@ app.MapGet("/youtube", async pubSubHubbub =>
         pubSubHubbub.Response.ContentType = "text/plain";
         await pubSubHubbub.Response.WriteAsync(challenge!);
         logger.LogInformation("Google PubSubHubbub verification successful, now successfully subscribed to the Youtube channel");
+    }
+
+    if (!string.IsNullOrEmpty(leaseSeconds))
+    {
+        var leaseSecondsInt = int.Parse(leaseSeconds.ToString());
+        await Task.Run(async () =>
+        {
+            await Task.Delay(leaseSecondsInt * 1000);
+            logger.LogInformation("Resubscribing to Google PubSubHubbub");
+            await youtubeSubscriber.SubscribeToChannel();
+        });
         return;
     }
     
