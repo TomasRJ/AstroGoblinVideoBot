@@ -1,9 +1,11 @@
-﻿using System.Net;
+﻿using System.Data.SQLite;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Xml.Serialization;
 using AstroGoblinVideoBot.Model;
+using Dapper;
 
 namespace AstroGoblinVideoBot;
 
@@ -32,9 +34,6 @@ public class RedditPoster
             return;
         youtubeRequest.Response.StatusCode = 200;
         
-        requestBody.Position = 0;
-        await WriteBodyToFile(requestBody);
-        
         if (string.IsNullOrEmpty(oauthToken.AccessToken) || !RedditOathTokenFileExist(out oauthToken))
         {
             _logger.LogError("Reddit Oauth token not found / does not exist");
@@ -49,14 +48,6 @@ public class RedditPoster
         var videoFeed = (VideoFeed) (xmlSerializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
     
         await SubmitVideo(oauthToken, videoFeed);
-    }
-
-    private async Task WriteBodyToFile(Stream requestBody)
-    {
-        var bodyText = await new StreamReader(requestBody, Encoding.UTF8).ReadToEndAsync();
-        var fileName = DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + ".xml";
-        await File.WriteAllTextAsync(fileName, bodyText, Encoding.UTF8);
-        _logger.LogInformation("Successfully wrote request body to file");
     }
 
     private bool SignatureVerification(HttpContext youtubeRequest, YoutubeSubscriber youtubeSubscriber, MemoryStream requestBody)
@@ -161,16 +152,137 @@ public class RedditPoster
             return;
         }
 
-        var responseString = await response.Content.ReadAsStringAsync();
-        await WriteSubmitResponseToFile(responseString);
+        await RedditPostModeration(submitResponse, videoFeed);
     }
-    
-    private async Task WriteSubmitResponseToFile(string requestContent)
+
+    private const string RedditDb = "reddit.sqlite";
+    private readonly SQLiteConnection _sqLiteConnection = new($"Data Source={RedditDb};Version=3;");
+    private async Task RedditPostModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
-        var fileName = DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + ".json";
-        await File.WriteAllTextAsync(fileName, requestContent, Encoding.UTF8);
-        _logger.LogInformation("Successfully wrote request body to file");
+        if (!File.Exists(RedditDb)) 
+            await CreateRedditDatabase();
+        
+        var oldRedditPostId = await GetOldestRedditStickyPostId();
+        
+        await UpdateRedditStickyPostsDb(oldRedditPostId, submitResponse, videoFeed);
+        
+        await UnstickyOldRedditPost(oldRedditPostId);
+        
+        await StickyNewRedditPost(submitResponse);
     }
+
+    private async Task CreateRedditDatabase()
+    {
+        _logger.LogInformation("The reddit database does not exist, creating it now");
+        const string createPostsTableQuery = "CREATE TABLE Posts (YoutubeVideoId TEXT NOT NULL, RedditPostId TEXT NOT NULL, Timestamp INTEGER NOT NULL, PRIMARY KEY (YoutubeVideoId))";
+        await _sqLiteConnection.ExecuteAsync(createPostsTableQuery);
+        
+        var stickiedPosts = await GetStickiedPosts();
+        
+        const string postsInsertQuery = "INSERT INTO Posts (YoutubeVideoId, RedditPostId, Timestamp) VALUES (@YoutubeVideoId, @RedditPostId, @Timestamp)";
+        await _sqLiteConnection.ExecuteAsync(postsInsertQuery, stickiedPosts);
+
+        _logger.LogInformation("Successfully created the Reddit database");
+    }
+
+    private async Task<List<object>> GetStickiedPosts()
+    {
+        _logger.LogInformation("Getting stickied posts from Reddit");
+        
+        SetBasicAuthHeader();
+        var response = await _redditHttpClient.GetAsync(_config.SubredditPostsInfo);
+        
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            _logger.LogError("Failed to get stickied posts from Reddit, got the following response: {Response}", await response.Content.ReadAsStringAsync());
+            return [];
+        }
+        
+        var subredditPosts = await response.Content.ReadFromJsonAsync<SubredditPostsInfo>();
+        
+        _logger.LogInformation("Successfully got stickied posts from Reddit");
+
+        return subredditPosts.Data.Children
+            .Where(child => child.Data.Stickied)
+            .Select(child => new
+            {
+                YoutubeVideoId = child.Data.Url.Split("?v=").Last(),
+                RedditPostId = child.Data.Name,
+                Timestamp = child.Data.TimestampUtc
+            })
+            .ToList<object>();
+    }
+
+    private async Task<string> GetOldestRedditStickyPostId()
+    {
+        _logger.LogInformation("Getting the oldest Reddit sticky post");
+        const string query = "SELECT RedditPostId FROM Posts ORDER BY Timestamp LIMIT 1";
+        return await _sqLiteConnection.QueryFirstAsync<string>(query);
+    }
+
+    private async Task UpdateRedditStickyPostsDb(string oldRedditPostId, SubmitResponse submitResponse, VideoFeed videoFeed)
+    {
+        _logger.LogInformation("Updating the Reddit sticky posts database");
+        const string deleteQuery = "DELETE FROM Posts WHERE RedditPostId = @redditPostId";
+        await _sqLiteConnection.ExecuteAsync(deleteQuery, new { redditPostId = oldRedditPostId });
+
+        const string postsInsertQuery = "INSERT INTO Posts (YoutubeVideoId, RedditPostId, Timestamp) VALUES (@YoutubeVideoId, @RedditPostId, @Timestamp)";
+        await _sqLiteConnection.ExecuteAsync(postsInsertQuery, new 
+            {
+                YoutubeVideoId = videoFeed.Entry.VideoId,
+                RedditPostId = submitResponse.Details.Data.Name,
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() 
+            });
+        
+        _logger.LogInformation("Successfully updated the Reddit sticky posts database");
+    }
+
+    private async Task UnstickyOldRedditPost(string oldRedditPostId)
+    {
+        _logger.LogInformation("Unsticking the old Reddit post");
+        var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            { "api_type", "json" },
+            { "id", oldRedditPostId },
+            { "state", "false" }
+        });
+        
+        var response = await _redditHttpClient.PostAsync(_config.RedditStickyUrl, content);
+        
+        var unstickyPostResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
+        
+        if (response.StatusCode != HttpStatusCode.OK || unstickyPostResponse.Details.Errors.Count != 0)
+        {
+            var responseContent = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to unsticky the old Reddit post, got the following response: {Response}", responseContent);
+        }
+        
+        _logger.LogInformation("Successfully unstuck the old Reddit post, got the following response: {Response}", await response.Content.ReadAsStringAsync());
+    }
+
+    private async Task StickyNewRedditPost(SubmitResponse submitResponse)
+    {
+        _logger.LogInformation("Sticking the new Reddit post");
+        var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            { "api_type", "json" },
+            { "id", submitResponse.Details.Data.Name },
+            { "state", "true" }
+        });
+        
+        var response = await _redditHttpClient.PostAsync(_config.RedditStickyUrl, content);
+        
+        var stickyPostResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
+        
+        if (response.StatusCode != HttpStatusCode.OK || stickyPostResponse.Details.Errors.Count != 0)
+        {
+            var responseContent = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to sticky the new Reddit post, got the following response: {Response}", responseContent);
+        }
+        
+        _logger.LogInformation("Successfully stuck the new Reddit post, got the following response: {Response}", await response.Content.ReadAsStringAsync());
+    }
+
     private async Task<OauthToken> RefreshRedditOathToken (string refreshToken)
     {
         _logger.LogInformation("Refreshing the Reddit Oauth token");
