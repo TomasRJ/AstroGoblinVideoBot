@@ -47,6 +47,9 @@ public class RedditPoster
         var xmlSerializer = new XmlSerializer(typeof(VideoFeed));
         var videoFeed = (VideoFeed) (xmlSerializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
     
+        if (await IsVideoAlreadyPosted(videoFeed))
+            return;
+        
         await SubmitVideo(oauthToken, videoFeed);
     }
 
@@ -169,6 +172,25 @@ public class RedditPoster
         await UnstickyOldRedditPost(oldRedditPostId);
         
         await StickyNewRedditPost(submitResponse);
+    }
+    
+    private async Task<bool> IsVideoAlreadyPosted(VideoFeed videoFeed)
+    {
+        if (!File.Exists(RedditDb)) 
+            await CreateRedditDatabase();
+        
+        _logger.LogInformation("Checking if the Youtube video exists in the database");
+        const string query = "SELECT EXISTS(SELECT 1 FROM Posts WHERE YoutubeVideoId = @youtubeVideoId)";
+        var result = await _sqLiteConnection.QueryFirstAsync<bool>(query, new { youtubeVideoId = videoFeed.Entry.VideoId });
+        
+        if (result)
+        {
+            _logger.LogInformation("The Youtube video already exists in the database, skipping the Reddit post submission");
+            return true;
+        }
+        
+        _logger.LogInformation("The Youtube video does not exist in the database, continuing with the Reddit post submission");
+        return false;
     }
 
     private async Task CreateRedditDatabase()
