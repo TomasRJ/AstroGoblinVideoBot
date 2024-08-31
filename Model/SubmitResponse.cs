@@ -14,10 +14,10 @@ public readonly struct Details
     public List<List<object>> Errors { get; init; }
     
     [JsonPropertyName("data")]
-    public Data Data { get; init; }
+    public SubmitData Data { get; init; }
 }
 
-public readonly struct Data
+public readonly struct SubmitData
 {
     [JsonPropertyName("url")]
     public string Url { get; init; }
