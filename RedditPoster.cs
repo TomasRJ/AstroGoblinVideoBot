@@ -61,6 +61,7 @@ public class RedditPoster
             var oauthToken = await authResponse.Content.ReadFromJsonAsync<OauthToken>();
             _logger.LogInformation("Successfully got Oauth token from Reddit");
             await AddOauthTokenToDb(oauthToken);
+            return;
         }
         
         var responseContent = await authResponse.Content.ReadAsStringAsync();

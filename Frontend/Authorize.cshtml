@@ -27,7 +27,7 @@
     <body class="mx-5 mt-3">
         <div class="mt-5 mx-0 p-4 col-lg-4 col-md-6 container-sm border border-black rounded">
             <h4>Authorize to post on Reddit</h4>
-            <form method="post" asp-page-handler="RedditForm">
+            <form method="post">
                 <label for="FormClientId" class="form-label">Reddit Client ID</label>
                 <input type="text" id="FormClientId" asp-for="AuthorizeForm!.RedditClientId" class="form-control" required>
                 <label for="FormResponseType" class="form-label">Reddit Response Type</label>
