@@ -10,32 +10,9 @@ public class Authorize : PageModel
 {
     [BindProperty]
     public RedditAuthorizeForm? AuthorizeForm { get; set; }
-    [BindProperty]
-    public string? Password { get; set; }
-    public bool IsAuthorized { get; private set; }
     private readonly SQLiteConnection _sqLiteConnection = new($"Data Source=reddit.sqlite;Version=3;");
     
-    public void OnGet()
-    {
-        if (!ModelState.IsValid || AuthorizeForm is null)
-            IsAuthorized = false;
-    }
-    
-    public IActionResult OnPostPassword()
-    {
-        var credentials = new ConfigurationBuilder().AddUserSecrets<Index>(optional:false).Build().Get<Credentials>();
-        if (Password == credentials.FormCredentials)
-        {
-            IsAuthorized = true;
-        }
-        else
-        {
-            ModelState.AddModelError(string.Empty, "Invalid password.");
-        }
-        return Page();
-    }
-    
-    public async Task<IActionResult> OnPostRedditFormAsync()
+    public async Task<IActionResult> OnPostAsync()
     {
         if (!ModelState.IsValid || AuthorizeForm is null)
         {
