@@ -21,6 +21,7 @@ public class RedditPoster
         _config = config;
         _logger = logger;
         _redditHttpClient.DefaultRequestHeaders.Add("User-Agent", _config.RedditUserAgent);
+        CreateRedditDatabase().Wait();
     }
     
     public async Task PostVideoToReddit(VideoFeed videoFeed)
@@ -204,8 +205,10 @@ public class RedditPoster
         _logger.LogInformation("The reddit database does not exist, creating it now");
         const string createPostsTableQuery = "CREATE TABLE Posts (YoutubeVideoId TEXT NOT NULL, RedditPostId TEXT NOT NULL, Timestamp INTEGER NOT NULL, PRIMARY KEY (YoutubeVideoId))";
         const string createRedditAuthTableQuery = "CREATE TABLE RedditAuth (Id INTEGER NOT NULL, OauthToken TEXT NOT NULL, Timestamp INTEGER NOT NULL, PRIMARY KEY (Id))";
+        const string createFormAuthTableQuery = "CREATE TABLE FormAuth (Id TEXT NOT NULL, Value TEXT NOT NULL, PRIMARY KEY (Id))";
         await _sqLiteConnection.ExecuteAsync(createPostsTableQuery);
         await _sqLiteConnection.ExecuteAsync(createRedditAuthTableQuery);
+        await _sqLiteConnection.ExecuteAsync(createFormAuthTableQuery);
         
         var stickiedPosts = await GetStickiedPosts();
         
@@ -218,9 +221,6 @@ public class RedditPoster
     #region RedditPostModeration
     private async Task RedditPostModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
-        if (!File.Exists(RedditDb)) 
-            await CreateRedditDatabase();
-        
         var oldRedditPostId = await GetOldestRedditStickyPostId();
         
         await UpdateRedditStickyPostsDb(oldRedditPostId, submitResponse, videoFeed);
@@ -232,9 +232,6 @@ public class RedditPoster
     
     private async Task<bool> IsVideoAlreadyPosted(VideoFeed videoFeed)
     {
-        if (!File.Exists(RedditDb)) 
-            await CreateRedditDatabase();
-        
         _logger.LogInformation("Checking if the Youtube video exists in the database");
         const string query = "SELECT EXISTS(SELECT 1 FROM Posts WHERE YoutubeVideoId = @youtubeVideoId)";
         var result = await _sqLiteConnection.QueryFirstAsync<bool>(query, new { youtubeVideoId = videoFeed.Entry.VideoId });
