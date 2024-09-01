@@ -1,5 +1,7 @@
+using System.Data.SQLite;
 using AstroGoblinVideoBot;
 using AstroGoblinVideoBot.Model;
+using Dapper;
 using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder();
@@ -64,6 +66,7 @@ app.MapGet("/youtube", async pubSubHubbub =>
     pubSubHubbub.Response.StatusCode = 200;
 });
 
+SQLiteConnection sqLiteConnection = new($"Data Source=reddit.sqlite;Version=3;");
 app.MapGet("/redditRedirect",async redditRedirect =>
 {
     logger.LogInformation("Reddit redirect request received");
@@ -80,15 +83,12 @@ app.MapGet("/redditRedirect",async redditRedirect =>
     
     await redditPoster.SaveOauthTokenToDb(code);
     
-    if(File.Exists("authorizeForm.json"))
-    {
+    const string doesStateStringExistQuery = "SELECT EXISTS(SELECT 1 FROM FormAuth WHERE Id = 'StateString')";
+    var doesStateStringExist = await sqLiteConnection.QueryFirstAsync<bool>(doesStateStringExistQuery);
+    if(doesStateStringExist) 
         await redditPoster.AuthorizeForm(redditRedirect, state);
-        return;
-    }
     
-    var bodyText = "Authorization successful, but no authorizeForm.json found, but the bot should still work."u8.ToArray();
-    await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
-    redditRedirect.Response.StatusCode = 200;
+    logger.LogError("State string does not exist in the database");
 });
 
 app.MapPost("/youtube", async youtubeSubscriptionRequest =>
