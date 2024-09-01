@@ -28,7 +28,6 @@ var isSubscribed = await youtubeSubscriber.SubscribeToChannel();
 if (!isSubscribed)
     return;
 
-var oauthToken = new OauthToken();
 var shutdownToken = app.Lifetime.ApplicationStopping;
 
 app.MapGet("/youtube", async pubSubHubbub =>
@@ -77,7 +76,7 @@ app.MapGet("/redditRedirect",async redditRedirect =>
         return;
     }
     
-    oauthToken = await redditPoster.GetOauthToken(code);
+    await redditPoster.SaveOauthTokenToDb(code);
     
     if(File.Exists("authorizeForm.json"))
     {
@@ -92,7 +91,8 @@ app.MapGet("/redditRedirect",async redditRedirect =>
 
 app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
-    await redditPoster.PostVideoToReddit(youtubeSubscriptionRequest, youtubeSubscriber, oauthToken);
+    var videoFeed = await youtubeSubscriber.GetVideoFeed(youtubeSubscriptionRequest);
+    await redditPoster.PostVideoToReddit(videoFeed);
 });
 
 await app.RunAsync();

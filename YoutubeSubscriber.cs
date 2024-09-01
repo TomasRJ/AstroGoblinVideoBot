@@ -1,5 +1,6 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
+using System.Xml.Serialization;
 using AstroGoblinVideoBot.Model;
 
 namespace AstroGoblinVideoBot;
@@ -31,14 +32,49 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
 
         return false;
     }
-
-    public bool VerifySignature(byte[] payload, string secret, string signature)
+    
+    public async Task<VideoFeed> GetVideoFeed(HttpContext youtubeSubscriptionRequest)
     {
-        logger.LogInformation("Verifying Google PubSubHubbub post request HMAC signature: {Signature}", signature.ToUpper());
+        logger.LogInformation("Google PubSubHubbub subscription request received");
+        var requestBody = new MemoryStream();
+        await youtubeSubscriptionRequest.Request.Body.CopyToAsync(requestBody);
+        
+        if (!SignatureVerification(youtubeSubscriptionRequest, requestBody))
+            throw new InvalidOperationException("Invalid signature");
+        youtubeSubscriptionRequest.Response.StatusCode = 200;
+
+        requestBody.Position = 0;
+        var xmlSerializer = new XmlSerializer(typeof(VideoFeed));
+        var videoFeed = (VideoFeed) (xmlSerializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
+        
+        logger.LogInformation("Successfully deserialized the Youtube video feed");
+        return videoFeed;
+    }
+    
+    private bool SignatureVerification(HttpContext youtubeRequest, MemoryStream requestBody)
+    {
+        var headers = youtubeRequest.Request.Headers;
+        var signatureHeader = headers["X-Hub-Signature"].FirstOrDefault();
+    
+        if (!SignatureExists(signatureHeader, youtubeRequest)) return false;
+        
+        if (!SignatureFormatCheck(signatureHeader, youtubeRequest, out var signatureParts)) return false;
+        var signature = signatureParts[1];
+        
+        requestBody.Position = 0;
+        
+        if (VerifySignature(requestBody.ToArray(), userSecret.HmacSecret, signature))
+            return true;
+        
+        youtubeRequest.Response.StatusCode = 200; // The Google PubSubHubbub protocol requires a 200 response even if the signature is invalid
+        return false;
+    }
+
+    private bool VerifySignature(byte[] payload, string secret, string signature)
+    {
         var hmac = new HMACSHA1(Encoding.UTF8.GetBytes(secret));
         var hashBytes = hmac.ComputeHash(payload);
         var hashString = Convert.ToHexString(hashBytes);
-        logger.LogInformation("The calculated HMAC signature is: {HashString}", hashString);
         
         if (hashString.Equals(signature.ToUpper()))
         {
@@ -49,7 +85,7 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
         return false;
     }
     
-    public bool SignatureExists(string? signature, HttpContext httpContext)
+    private bool SignatureExists(string? signature, HttpContext httpContext)
     {
         if (signature != null)
         {
@@ -61,7 +97,7 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
         return false;
     }
 
-    public bool SignatureFormatCheck(string? signature, HttpContext httpContext, out string[] strings)
+    private bool SignatureFormatCheck(string? signature, HttpContext httpContext, out string[] strings)
     {
         strings = signature!.Split('=');
         if (strings is ["sha1", _])

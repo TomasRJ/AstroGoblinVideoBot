@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Xml.Serialization;
 using AstroGoblinVideoBot.Model;
 using Dapper;
 
@@ -55,16 +54,9 @@ public class RedditPoster
         File.Delete(AuthorizeFormPath);
     }
     
-    public async Task PostVideoToReddit(HttpContext youtubeRequest, YoutubeSubscriber youtubeSubscriber, OauthToken oauthToken)
+    public async Task PostVideoToReddit(VideoFeed videoFeed)
     {
-        _logger.LogInformation("Google PubSubHubbub subscription request received");
-        var requestBody = new MemoryStream();
-        await youtubeRequest.Request.Body.CopyToAsync(requestBody);
-        
-        if (!SignatureVerification(youtubeRequest, youtubeSubscriber, requestBody))
-            return;
-        youtubeRequest.Response.StatusCode = 200;
-        
+        var oauthToken = new OauthToken();
         if (string.IsNullOrEmpty(oauthToken.AccessToken) || !RedditOathTokenExist(out oauthToken))
         {
             _logger.LogError("Reddit Oauth token not found / does not exist");
@@ -73,38 +65,15 @@ public class RedditPoster
         
         if (IsTokenExpired())
             oauthToken = await RefreshRedditOathToken(oauthToken.RefreshToken);
-
-        requestBody.Position = 0;
-        var xmlSerializer = new XmlSerializer(typeof(VideoFeed));
-        var videoFeed = (VideoFeed) (xmlSerializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
-    
+        
         if (await IsVideoAlreadyPosted(videoFeed))
             return;
         
         await SubmitVideo(oauthToken, videoFeed);
     }
 
-    private bool SignatureVerification(HttpContext youtubeRequest, YoutubeSubscriber youtubeSubscriber, MemoryStream requestBody)
-    {
-        var headers = youtubeRequest.Request.Headers;
-        var signatureHeader = headers["X-Hub-Signature"].FirstOrDefault();
-    
-        if (!youtubeSubscriber.SignatureExists(signatureHeader, youtubeRequest)) return false;
-        
-        if (!youtubeSubscriber.SignatureFormatCheck(signatureHeader, youtubeRequest, out var signatureParts)) return false;
-        var signature = signatureParts[1];
-        
-        requestBody.Position = 0;
-        
-        if (youtubeSubscriber.VerifySignature(requestBody.ToArray(), _userSecret.HmacSecret, signature))
-            return true;
-        
-        youtubeRequest.Response.StatusCode = 200; // The Google PubSubHubbub protocol requires a 200 response even if the signature is invalid
-        return false;
-    }
-
     #region OauthToken
-    public async Task<OauthToken> GetOauthToken(string authorizationCode)
+    public async Task SaveOauthTokenToDb(string authorizationCode)
     {
         _logger.LogInformation("Getting Oauth token from Reddit redirect request");
         SetBasicAuthHeader();
@@ -122,12 +91,10 @@ public class RedditPoster
             var oauthToken = await authResponse.Content.ReadFromJsonAsync<OauthToken>();
             _logger.LogInformation("Successfully got Oauth token from Reddit");
             await AddOauthTokenToDb(oauthToken);
-            return oauthToken;
         }
         
         var responseContent = await authResponse.Content.ReadAsStringAsync();
         _logger.LogError("Failed to get Oauth token from Reddit, got the following response: {Response}", responseContent);
-        return new OauthToken();
     }
     
     private async Task<OauthToken> RefreshRedditOathToken (string refreshToken)
