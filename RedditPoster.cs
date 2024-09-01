@@ -23,37 +23,6 @@ public class RedditPoster
         _redditHttpClient.DefaultRequestHeaders.Add("User-Agent", _config.RedditUserAgent);
     }
     
-    private const string AuthorizeFormPath = "authorizeForm.json";
-    public async Task AuthorizeForm(HttpContext redditRedirect, string stateString)
-    {
-        var authorizeFormJson = await File.ReadAllTextAsync(AuthorizeFormPath);
-        var authorizeForm = JsonSerializer.Deserialize<RedditAuthorizeForm>(authorizeFormJson);
-        if (authorizeForm is null)
-        {
-            _logger.LogError("Failed to deserialize authorizeForm.json");
-            return;
-        }
-        
-        byte[] bodyText;
-        if (authorizeForm.StateString!.Equals(stateString))
-        {
-            bodyText = "Authorization successful and state matches. "u8.ToArray();
-            await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
-            
-            File.Delete(AuthorizeFormPath);
-            _logger.LogInformation("Authorization successful and state matches");
-            
-            return;
-        }
-        
-        _logger.LogError("The state string from reddit does not does not match the state string from the authorization form");
-        bodyText = "State does not match"u8.ToArray();
-        await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
-        
-        redditRedirect.Response.StatusCode = 400;
-        File.Delete(AuthorizeFormPath);
-    }
-    
     public async Task PostVideoToReddit(VideoFeed videoFeed)
     {
         var oauthToken = new OauthToken();
@@ -170,6 +139,34 @@ public class RedditPoster
     }
     #endregion
     
+    public async Task AuthorizeForm(HttpContext redditRedirect, string stateString)
+    {
+        const string authorizeFormQuery = "SELECT Value FROM FormAuth WHERE Id = 'StateString'";
+        var authorizeFormStateString = await _sqLiteConnection.QueryFirstAsync<string>(authorizeFormQuery);
+        
+        byte[] bodyText;
+        if (authorizeFormStateString.Equals(stateString))
+        {
+            bodyText = "Authorization successful and state matches. "u8.ToArray();
+            await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
+            
+            _logger.LogInformation("Authorization successful and state matches");
+            return;
+        }
+        
+        _logger.LogError("The state string from reddit does not does not match the state string from the authorization form");
+        bodyText = "State does not match"u8.ToArray();
+        await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
+        
+        redditRedirect.Response.StatusCode = 400;
+    }
+    
+    private void SetBasicAuthHeader()
+    {
+        var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_userSecret.RedditClientId}:{_userSecret.RedditSecret}"));
+        _redditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
+    }
+    
     private async Task SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
     {
         _logger.LogInformation("Submitting video to Reddit");
@@ -218,6 +215,7 @@ public class RedditPoster
         _logger.LogInformation("Successfully created the Reddit database");
     }
     
+    #region RedditPostModeration
     private async Task RedditPostModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
         if (!File.Exists(RedditDb)) 
@@ -285,7 +283,7 @@ public class RedditPoster
         const string query = "SELECT RedditPostId FROM Posts ORDER BY Timestamp LIMIT 1";
         return await _sqLiteConnection.QueryFirstAsync<string>(query);
     }
-
+    
     private async Task UpdateRedditStickyPostsDb(string oldRedditPostId, SubmitResponse submitResponse, VideoFeed videoFeed)
     {
         _logger.LogInformation("Updating the Reddit sticky posts database");
@@ -302,7 +300,7 @@ public class RedditPoster
         
         _logger.LogInformation("Successfully updated the Reddit sticky posts database");
     }
-
+    
     private async Task UnstickyOldRedditPost(string oldRedditPostId)
     {
         _logger.LogInformation("Unsticking the old Reddit post");
@@ -348,10 +346,5 @@ public class RedditPoster
         
         _logger.LogInformation("Successfully stuck the new Reddit post, got the following response: {Response}", await response.Content.ReadAsStringAsync());
     }
-    
-    private void SetBasicAuthHeader()
-    {
-        var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_userSecret.RedditClientId}:{_userSecret.RedditSecret}"));
-        _redditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
-    }
+    #endregion    
 }

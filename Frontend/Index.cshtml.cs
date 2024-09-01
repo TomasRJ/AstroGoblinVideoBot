@@ -1,6 +1,6 @@
-﻿using System.Text;
-using System.Text.Json;
+﻿using System.Data.SQLite;
 using AstroGoblinVideoBot.Model;
+using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -10,7 +10,7 @@ public class Index : PageModel
 {
     [BindProperty]
     public RedditAuthorizeForm? AuthorizeForm { get; set; }
-    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
+    private readonly SQLiteConnection _sqLiteConnection = new($"Data Source=reddit.sqlite;Version=3;");
     
     public async Task<IActionResult> OnPostAsync()
     {
@@ -18,8 +18,9 @@ public class Index : PageModel
         {
             return Page();
         }
-        var authorizeFormJson = JsonSerializer.Serialize(AuthorizeForm, SerializerOptions);
-        await System.IO.File.WriteAllTextAsync("authorizeForm.json", authorizeFormJson, Encoding.UTF8);
+
+        const string insertQuery = "INSERT OR REPLACE INTO FormAuth (Id, Value) VALUES ('StateString', @StateString)";
+        await _sqLiteConnection.ExecuteAsync(insertQuery, new { AuthorizeForm.StateString });
         
         var redirectUrl = $"https://www.reddit.com/api/v1/authorize" +
                           $"?client_id={AuthorizeForm.RedditClientId}" +
