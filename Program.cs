@@ -49,16 +49,16 @@ app.MapGet("/youtube", async pubSubHubbub =>
         await pubSubHubbub.Response.WriteAsync(challenge!);
         logger.LogInformation("Google PubSubHubbub verification successful, now successfully subscribed to the Youtube channel");
     }
-
+    
     if (!string.IsNullOrEmpty(leaseSeconds))
     {
         var leaseSecondsInt = int.Parse(leaseSeconds.ToString());
-        await Task.Run(async () =>
+        _ = Task.Run(async () =>
         {
             await Task.Delay(leaseSecondsInt * 1000, shutdownToken);
             logger.LogInformation("Resubscribing to Google PubSubHubbub");
             await youtubeSubscriber.SubscribeToChannel();
-        });
+        }, shutdownToken);
         return;
     }
     
