@@ -85,10 +85,11 @@ app.MapGet("/redditRedirect",async redditRedirect =>
     
     const string doesStateStringExistQuery = "SELECT EXISTS(SELECT 1 FROM FormAuth WHERE Id = 'StateString')";
     var doesStateStringExist = await sqLiteConnection.QueryFirstAsync<bool>(doesStateStringExistQuery);
+    
     if(doesStateStringExist) 
         await redditPoster.AuthorizeForm(redditRedirect, state);
-    
-    logger.LogError("State string does not exist in the database");
+    else
+        logger.LogError("State string does not exist in the database");
 });
 
 app.MapPost("/youtube", async youtubeSubscriptionRequest =>
