@@ -26,8 +26,7 @@ public class RedditPoster
     
     public async Task PostVideoToReddit(VideoFeed videoFeed)
     {
-        var oauthToken = new OauthToken();
-        if (string.IsNullOrEmpty(oauthToken.AccessToken) || !RedditOathTokenExist(out oauthToken))
+        if (!RedditOathTokenExist(out var oauthToken))
         {
             _logger.LogError("Reddit Oauth token not found / does not exist");
             return;
@@ -203,6 +202,14 @@ public class RedditPoster
     private readonly SQLiteConnection _sqLiteConnection = new($"Data Source={RedditDb};Version=3;");
     private async Task CreateRedditDatabase()
     {
+        const string checkDbQuery = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Posts' OR name = 'RedditAuth' OR name = 'FormAuth')";
+        var dbExists = await _sqLiteConnection.QueryFirstAsync<bool>(checkDbQuery);
+        if(dbExists)
+        {
+            _logger.LogInformation("The Reddit database already exists");
+            return;
+        }
+        
         _logger.LogInformation("The reddit database does not exist, creating it now");
         const string createPostsTableQuery = "CREATE TABLE Posts (YoutubeVideoId TEXT NOT NULL, RedditPostId TEXT NOT NULL, Timestamp INTEGER NOT NULL, PRIMARY KEY (YoutubeVideoId))";
         const string createRedditAuthTableQuery = "CREATE TABLE RedditAuth (Id INTEGER NOT NULL, OauthToken TEXT NOT NULL, Timestamp INTEGER NOT NULL, PRIMARY KEY (Id))";
