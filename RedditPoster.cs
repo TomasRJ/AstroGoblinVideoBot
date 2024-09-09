@@ -133,7 +133,7 @@ public class RedditPoster
         var oauthTokenString = JsonSerializer.Serialize(oauthToken);
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + oauthToken.ExpiresIn;
         
-        const string insertQuery = "INSERT INTO RedditAuth (Id, OauthToken, Timestamp) VALUES (1, @OauthToken, @Timestamp)";
+        const string insertQuery = "INSERT OR REPLACE INTO RedditAuth (Id, OauthToken, Timestamp) VALUES (1, @OauthToken, @Timestamp)";
         await _sqLiteConnection.ExecuteAsync(insertQuery, new { OauthToken = oauthTokenString, Timestamp = timestamp });
         
         _logger.LogInformation("Successfully added the Reddit Oauth token to the database");
