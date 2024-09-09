@@ -10,8 +10,3 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
-  # GitHub Actions updates
-  - package-ecosystem: "github-actions"
-    directory: "/" # GitHub Actions are usually defined in the root
-    schedule:
-      interval: "weekly" # or "daily", "monthly"
