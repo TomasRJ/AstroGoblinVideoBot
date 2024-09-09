@@ -12,6 +12,9 @@ public readonly struct SubredditData
 {
     [JsonPropertyName("children")]
     public List<Child> Children { get; init; }
+    
+    [JsonPropertyName("after")]
+    public string? After { get; init; }
 }
 
 public readonly struct Child

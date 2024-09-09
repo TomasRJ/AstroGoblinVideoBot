@@ -7,7 +7,7 @@ public readonly struct Config
     public string RedditSubmitUrl { get; init; }
     public string RedditStickyUrl { get; init; }
     public string RedditUserAgent { get; init; }
-    public string SubredditPostsInfo { get; init; }
+    public string UserPostsInfo { get; init; }
     public string Subreddit { get; init; }
     public string GooglePubSubUrl { get; init; }
     public string GooglePubSubTopic { get; init; }
