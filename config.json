@@ -7,5 +7,5 @@
   "SubredditPostsInfo": "https://www.reddit.com/r/astrogoblin.json",
   "Subreddit": "astrogoblin",
   "GooglePubSubUrl": "https://pubsubhubbub.appspot.com/subscribe",
-  "GooglePubSubTopic": "https://www.youtube.com/feeds/videos.xml?channel_id=UCRb4V8WHojbGqEvzL_9g03Q"
+  "GooglePubSubTopic": "https://www.youtube.com/xml/feeds/videos.xml?channel_id=UCRb4V8WHojbGqEvzL_9g03Q"
 }
