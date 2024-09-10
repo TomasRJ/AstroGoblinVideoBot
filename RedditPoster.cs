@@ -227,6 +227,7 @@ public class RedditPoster
     private async Task RedditPostModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
         var oldRedditPostId = await GetOldestRedditStickyPostId();
+        _logger.LogInformation("Successfully got the oldest Reddit sticky post: {RedditPostId}", oldRedditPostId);
         
         await UpdateRedditStickyPostsDb(oldRedditPostId, submitResponse, videoFeed);
         
