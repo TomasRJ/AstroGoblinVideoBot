@@ -35,9 +35,6 @@ public class RedditPoster
         if (IsTokenExpired())
             oauthToken = await RefreshRedditOathToken(oauthToken.RefreshToken);
         
-        if (await IsVideoAlreadyPosted(videoFeed))
-            return;
-        
         await SubmitVideo(oauthToken, videoFeed);
     }
 
@@ -238,7 +235,7 @@ public class RedditPoster
         await StickyNewRedditPost(submitResponse);
     }
     
-    private async Task<bool> IsVideoAlreadyPosted(VideoFeed videoFeed)
+    public async Task<bool> IsVideoAlreadyPosted(VideoFeed videoFeed)
     {
         _logger.LogInformation("Checking if the Youtube video exists in the database");
         const string doesVideoExistsQuery = "SELECT EXISTS(SELECT 1 FROM Posts WHERE YoutubeVideoId = @youtubeVideoId)";

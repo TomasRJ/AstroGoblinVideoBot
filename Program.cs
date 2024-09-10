@@ -95,6 +95,10 @@ app.MapGet("/redditRedirect",async redditRedirect =>
 app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
     var videoFeed = await youtubeSubscriber.GetVideoFeed(youtubeSubscriptionRequest);
+    
+    if (await redditPoster.IsVideoAlreadyPosted(videoFeed))
+        return;
+    
     await redditPoster.PostVideoToReddit(videoFeed);
 });
 
