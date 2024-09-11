@@ -80,7 +80,7 @@ public class RedditPoster
         {
             var oauthToken = await authResponse.Content.ReadFromJsonAsync<OauthToken>();
             await AddOauthTokenToDb(oauthToken);
-            _logger.LogInformation("Successfully got refreshed Reddit Oauth token.");
+            _logger.LogInformation("Successfully got refreshed Reddit Oauth token");
             return oauthToken;
         }
         
@@ -191,7 +191,8 @@ public class RedditPoster
                 submitResponse.Details.Errors);
             return;
         }
-
+        
+        _logger.LogInformation("Successfully submitted video to Reddit");
         await RedditPostModeration(submitResponse, videoFeed);
     }
     
@@ -226,6 +227,7 @@ public class RedditPoster
     #region RedditPostModeration
     private async Task RedditPostModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
+        _logger.LogInformation("Starting Reddit post moderation");
         var oldRedditPostId = await GetOldestRedditStickyPostId();
         _logger.LogInformation("Successfully got the oldest Reddit sticky post: {RedditPostId}", oldRedditPostId);
         
@@ -234,6 +236,7 @@ public class RedditPoster
         await UnstickyOldRedditPost(oldRedditPostId);
         
         await StickyNewRedditPost(submitResponse);
+        _logger.LogInformation("Successfully finished Reddit post moderation");
     }
     
     public async Task<bool> IsVideoAlreadyPosted(VideoFeed videoFeed)
