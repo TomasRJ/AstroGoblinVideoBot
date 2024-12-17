@@ -96,7 +96,7 @@ public class RedditPoster
         
         try
         {
-            result = _sqLiteConnection.QueryFirst<string>(oauthTokenQuery);
+            result = _sqLiteConnection.QuerySingle<string>(oauthTokenQuery);
         }
         catch (Exception ex)
         {
@@ -308,7 +308,7 @@ public class RedditPoster
     
     private async Task UpdateRedditStickyPostsDb(string oldRedditPostId, SubmitResponse submitResponse, VideoFeed videoFeed)
     {
-        _logger.LogInformation("Updating the Reddit sticky posts database");
+        _logger.LogInformation("Updating the Reddit posts database");
         const string unstickyQuery = "UPDATE Posts SET Stickied = 0 WHERE RedditPostId = @redditPostId";
         await _sqLiteConnection.ExecuteAsync(unstickyQuery, new { redditPostId = oldRedditPostId });
 
@@ -320,7 +320,7 @@ public class RedditPoster
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() 
             });
         
-        _logger.LogInformation("Successfully updated the Reddit sticky posts database");
+        _logger.LogInformation("Successfully updated the Reddit posts database");
     }
     
     private async Task UnstickyOldRedditPost(string oldRedditPostId)

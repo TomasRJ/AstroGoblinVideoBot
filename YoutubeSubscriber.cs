@@ -43,6 +43,7 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
             throw new InvalidOperationException("Invalid signature");
         youtubeSubscriptionRequest.Response.StatusCode = 200;
 
+        logger.LogInformation("Deserializing the Youtube video feed");
         requestBody.Position = 0;
         var xmlSerializer = new XmlSerializer(typeof(VideoFeed));
         var videoFeed = (VideoFeed) (xmlSerializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
