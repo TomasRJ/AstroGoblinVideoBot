@@ -8,10 +8,11 @@ This a C# .NET 8 project I made to have a "YouTube bot" reddit account post new 
 - Prevention of posting the same video multiple times by storing the post and video details in a SQLite database.
 - The ability get previous reddit posts details by using Reddit's JSON URL endpoint feature. This URL is set in the "UserPostsInfo" in the **config.json** file.
 - A front-end, where the /authorize endpoint has a HTML form to make a ["Reddit Authorize url"](https://github.com/reddit-archive/reddit/wiki/OAuth2#authorization) where the submit button takes you to the Reddit OAuth2 page to authorize the bot account to submit and moderate posts.
-- HMAC signature verification for the PubSubHubbub Hub to verify the authenticity of the POST requests.
+- HMAC signature verification to verify the authenticity of the PubSubHubbub Hub POST requests.
 - Usage of post flairs to flair the new posts with a specific flair. Use the [Reddit API](https://old.reddit.com/dev/api/oauth#GET_api_link_flair_v2) to get the flair ids for your subreddit.
 - Automatic refreshing of the Reddit OAuth2 access token when it expires.
 - Automatic refreshing of the PubSubHubbub Hub subscription when it expires.
+- Support for running with a --enable-http-logging to enable [HTTP Logging](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.httploggingbuilderextensions.usehttplogging?view=aspnetcore-9.0&viewFallbackFrom=net-8.0)
 
 ### Project endpoints:
 - **/** - The Frontend/Index.cshtml page.
