@@ -52,31 +52,8 @@ var shutdownToken = app.Lifetime.ApplicationStopping;
 app.MapGet("/youtube", async pubSubHubbub =>
 {
     var query = pubSubHubbub.Request.Query;
-    var topic = query.ContainsKey("hub.topic") ? query["hub.topic"].ToString() : throw new InvalidOperationException();
-    var challenge = query.ContainsKey("hub.challenge") ? query["hub.challenge"].ToString() : throw new InvalidOperationException();
-    var mode = query.ContainsKey("hub.mode") ? query["hub.mode"].ToString() : throw new InvalidOperationException();
-    var leaseSeconds = query.ContainsKey("hub.lease_seconds") ? query["hub.lease_seconds"].ToString() : throw new InvalidOperationException();
-    
-    if (!string.IsNullOrEmpty(challenge) && mode.Equals("subscribe") && topic.Equals(config.GooglePubSubTopic))
-    {
-        logger.LogInformation("Google PubSubHubbub verification request received");
-        pubSubHubbub.Response.ContentType = "text/plain";
-        await pubSubHubbub.Response.WriteAsync(challenge);
-        logger.LogInformation("Google PubSubHubbub verification successful, now successfully subscribed to the Youtube channel");
-    }
-    
-    if (!string.IsNullOrEmpty(leaseSeconds))
-    {
-        var leaseSecondsInt = int.Parse(leaseSeconds);
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(leaseSecondsInt * 1000, shutdownToken);
-            logger.LogInformation("Resubscribing to Google PubSubHubbub");
-            await youtubeController.SubscribeToChannel();
-        }, shutdownToken);
-        return;
-    }
-    
+    if (await youtubeController.HandlePubSubRequest(query, pubSubHubbub, shutdownToken)) return;
+
     logger.LogInformation("Got unknown request at the /youtube endpoint: {Query}", query);
     pubSubHubbub.Response.StatusCode = 200;
 });

@@ -9,6 +9,33 @@ public class YoutubeController(Credentials userSecret, Config config, ILogger lo
 {
     private readonly HttpClient _youtubeHttpClient = new();
     
+    public async Task<bool> HandlePubSubRequest(IQueryCollection queryCollection, HttpContext httpContext, CancellationToken cancellationToken)
+    {
+        var topic = queryCollection.ContainsKey("hub.topic") ? queryCollection["hub.topic"].ToString() : throw new InvalidOperationException();
+        var challenge = queryCollection.ContainsKey("hub.challenge") ? queryCollection["hub.challenge"].ToString() : throw new InvalidOperationException();
+        var mode = queryCollection.ContainsKey("hub.mode") ? queryCollection["hub.mode"].ToString() : throw new InvalidOperationException();
+        var leaseSeconds = queryCollection.ContainsKey("hub.lease_seconds") ? queryCollection["hub.lease_seconds"].ToString() : throw new InvalidOperationException();
+    
+        if (!string.IsNullOrEmpty(challenge) && mode.Equals("subscribe") && topic.Equals(config.GooglePubSubTopic))
+        {
+            logger.LogInformation("Google PubSubHubbub verification request received");
+            httpContext.Response.ContentType = "text/plain";
+            await httpContext.Response.WriteAsync(challenge, cancellationToken: cancellationToken);
+            logger.LogInformation("Google PubSubHubbub verification successful, now successfully subscribed to the Youtube channel");
+        }
+
+        if (string.IsNullOrEmpty(leaseSeconds)) return false;
+        
+        var leaseSecondsInt = int.Parse(leaseSeconds);
+        _ = Task.Run(async () => // using "_ =" makes the Task run in the background
+        {
+            await Task.Delay(leaseSecondsInt * 1000, cancellationToken);
+            logger.LogInformation("Resubscribing to Google PubSubHubbub");
+            await SubscribeToChannel();
+        }, cancellationToken);
+        return true;
+    }
+    
     public async Task<bool> SubscribeToChannel()
     {
         logger.LogInformation("Subscribing to Youtube channel: {Channel}", config.GooglePubSubTopic);
@@ -43,7 +70,7 @@ public class YoutubeController(Credentials userSecret, Config config, ILogger lo
             throw new InvalidOperationException("Invalid signature");
         youtubeSubscriptionRequest.Response.StatusCode = 200;
 
-        logger.LogInformation("Deserializing the Youtube video feed");
+        logger.LogTrace("Deserializing the Youtube video feed");
         requestBody.Position = 0;
         var xmlSerializer = new XmlSerializer(typeof(VideoFeed));
         var videoFeed = (VideoFeed) (xmlSerializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
