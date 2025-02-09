@@ -13,6 +13,7 @@ This a C# .NET 8 project I made to have a "YouTube bot" reddit account post new 
 - Automatic refreshing of the Reddit OAuth2 access token when it expires.
 - Automatic refreshing of the PubSubHubbub Hub subscription when it expires.
 - Support for running with a --enable-http-logging to enable [HTTP Logging](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.httploggingbuilderextensions.usehttplogging?view=aspnetcore-9.0&viewFallbackFrom=net-8.0)
+- Support for saving the logs into a "logs" directory with --save-logs flag, with a month-long rollover. 
 
 ### Project endpoints:
 - **/** - The Frontend/Index.cshtml page.
@@ -54,12 +55,6 @@ docker run -d -p 8080:8080 astrogoblin-youtube-bot
 ```
 Go to http://localhost:8080/ to see the Frontend/Index.cshtml page.
 
-### Uses the following NuGet packages:
-- [Dapper](https://www.nuget.org/packages/Dapper/)
-- [System.Data.SQLite.Core](https://www.nuget.org/packages/System.Data.SQLite.Core/)
-- [Microsoft.Extensions.Configuration.UserSecrets](https://www.nuget.org/packages/Microsoft.Extensions.Configuration.UserSecrets/)
-- [Microsoft.Extensions.Configuration.Binder](https://www.nuget.org/packages/Microsoft.Extensions.Configuration.Binder/)
-
 ### Example data
 
 Here is an example the XML data PubSubHubbub sends to server when a new video is uploaded:
@@ -84,3 +79,10 @@ Here is an example of the format of JSON response after making a successful redd
 ```json
 {"json": {"errors": [], "data": {"url": "https://www.reddit.com/r/astrogoblin/comments/1f50b8d/this_is_a_dumb_game_for_babies/", "drafts_count": 0, "id": "1f50b8d", "name": "t3_1f50b8d"}}}
 ```
+
+### Uses the following NuGet packages:
+- [Dapper](https://www.nuget.org/packages/Dapper/)
+- [System.Data.SQLite.Core](https://www.nuget.org/packages/System.Data.SQLite.Core/)
+- [Serilog.AspNetCore](https://www.nuget.org/packages/Serilog.AspNetCore)
+- [Microsoft.Extensions.Configuration.UserSecrets](https://www.nuget.org/packages/Microsoft.Extensions.Configuration.UserSecrets/)
+- [Microsoft.Extensions.Configuration.Binder](https://www.nuget.org/packages/Microsoft.Extensions.Configuration.Binder/)

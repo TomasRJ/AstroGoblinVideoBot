@@ -3,11 +3,26 @@ using AstroGoblinVideoBot;
 using AstroGoblinVideoBot.Model;
 using Dapper;
 using Microsoft.AspNetCore.HttpOverrides;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder();
 builder.Services.AddRazorPages().WithRazorPagesRoot("/Frontend");
 if (args.Contains("--enable-http-logging"))
     builder.Services.AddHttpLogging(_ => { });
+const string logFormat = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:w}:{NewLine}{Message}{Exception}{NewLine}";
+var serilog = new LoggerConfiguration().WriteTo.Console(outputTemplate: logFormat).CreateLogger();
+if (args.Contains("--save-logs"))
+{
+    Directory.CreateDirectory("./logs");
+    serilog = new LoggerConfiguration()
+        .WriteTo.Console(outputTemplate: logFormat)
+        .WriteTo.File(
+            "logs/.log",
+            outputTemplate: logFormat,
+            rollingInterval: RollingInterval.Month
+        ).CreateLogger();
+}
+builder.Services.AddSerilog(serilog);
 
 var app = builder.Build();
 var logger = app.Logger;
