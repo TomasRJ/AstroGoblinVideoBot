@@ -1,15 +1,15 @@
 ﻿# Astrogoblin YouTube Bot
-This a C# .NET 8 project I made to have a "YouTube bot" reddit account post new videos from the [Astrogoblin YouTube channel](https://www.youtube.com/@astrogoblinplays) to [the Astrogoblin subreddit](https://reddit.com/r/astrogoblin/).
+This a C# .NET 8 project I made to have a "YouTube bot" reddit account submit new videos from the [Astrogoblin YouTube channel](https://www.youtube.com/@astrogoblinplays) to [the Astrogoblin subreddit](https://reddit.com/r/astrogoblin/).
 
-[YouTube supports push notifications via PubSubHubbub](https://developers.google.com/youtube/v3/guides/push_notifications) (also called WebSub), a server-to-server publish/subscribe protocol, where this project specifically uses the ["Google PubSubHubbub Hub"](https://pubsubhubbub.appspot.com/) to get HTTP POST requests for when new videos are uploaded to the channel and them post them to Reddit via the [Reddit API](https://www.reddit.com/dev/api/).
+[YouTube supports push notifications via PubSubHubbub](https://developers.google.com/youtube/v3/guides/push_notifications) (also called WebSub), a server-to-server publish/subscribe protocol, where this project specifically uses the ["Google PubSubHubbub Hub"](https://pubsubhubbub.appspot.com/) to get HTTP POST requests for when new videos are uploaded to the channel and them submission them to Reddit via the [Reddit API](https://www.reddit.com/dev/api/).
 
 ### Features:
-- Moderation of the new posts by unsticking a previous video post and stickying the new post.
-- Prevention of posting the same video multiple times by storing the post and video details in a SQLite database.
-- The ability get previous reddit posts details by using Reddit's JSON URL endpoint feature. This URL is set in the "UserPostsInfo" in the **config.json** file.
+- Moderation of the 2nd and 3rd latest submission by unsticking 3rd most recent video submission and stickying the 2nd submission.
+- Prevention of posting the same video multiple times by storing the submission and video details in a SQLite database.
+- The ability to get previous reddit posts details by using Reddit's JSON URL endpoint feature. This URL is set in the "UserPostsInfo" in the **config.json** file.
 - A front-end, where the /authorize endpoint has a HTML form to make a ["Reddit Authorize url"](https://github.com/reddit-archive/reddit/wiki/OAuth2#authorization) where the submit button takes you to the Reddit OAuth2 page to authorize the bot account to submit and moderate posts.
 - HMAC signature verification to verify the authenticity of the PubSubHubbub Hub POST requests.
-- Usage of post flairs to flair the new posts with a specific flair. Use the [Reddit API](https://old.reddit.com/dev/api/oauth#GET_api_link_flair_v2) to get the flair ids for your subreddit.
+- Usage of submission flairs to flair the new posts with a specific flair. Use the [Reddit API](https://old.reddit.com/dev/api/oauth#GET_api_link_flair_v2) to get the flair ids for your subreddit.
 - Automatic refreshing of the Reddit OAuth2 access token when it expires.
 - Automatic refreshing of the PubSubHubbub Hub subscription when it expires.
 - Support for running with a --enable-http-logging to enable [HTTP Logging](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.httploggingbuilderextensions.usehttplogging?view=aspnetcore-9.0&viewFallbackFrom=net-8.0)
@@ -17,7 +17,7 @@ This a C# .NET 8 project I made to have a "YouTube bot" reddit account post new 
 
 ### Project endpoints:
 - **/** - The Frontend/Index.cshtml page.
-- **/authorize** - The Frontend/Authorize.cshtml page, used to make the reddit authorize url with an HTML form. Has a "state string" that used in tandem with the /redditRedirect endpoint to verify the authenticity of the Reddit OAuth2 authorization.
+- **/authorize** - The Frontend/Authorize.cshtml page, used to make the reddit authorize url with an HTML form. Has a "state string" that is used in tandem with the /redditRedirect endpoint to verify the authenticity of the Reddit OAuth2 authorization.
 - **/redditRedirect** - A GET endpoint that takes the Reddit OAuth2 authorization redirect back to the project and with the code gets the Reddit OAuth2 access token and with the state string verifies the authenticity of the Reddit OAuth2 redirect.
 - **/youtube** - A GET endpoint that is used by the PubSubHubbub Hub to verify the subscription.
 - **/youtube** - A POST endpoint that is used by the PubSubHubbub Hub to send the new video details to.
@@ -75,7 +75,7 @@ Here is an example the XML data PubSubHubbub sends to server when a new video is
 </entry></feed>
 ```
 
-Here is an example of the format of JSON response after making a successful reddit post:
+Here is an example of the format of JSON response after making a successful reddit submission:
 ```json
 {"json": {"errors": [], "data": {"url": "https://www.reddit.com/r/astrogoblin/comments/1f50b8d/this_is_a_dumb_game_for_babies/", "drafts_count": 0, "id": "1f50b8d", "name": "t3_1f50b8d"}}}
 ```
