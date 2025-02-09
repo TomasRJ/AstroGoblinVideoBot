@@ -51,7 +51,7 @@ public class RedditController
         redditRedirect.Response.StatusCode = 400;
     }
     
-    public async Task SubmitVideoToReddit(VideoFeed videoFeed)
+    public async Task HandleRedditSubmission(VideoFeed videoFeed)
     {
         if (!RedditOathTokenExist(out var oauthToken))
         {

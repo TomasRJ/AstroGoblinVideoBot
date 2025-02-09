@@ -91,7 +91,7 @@ app.MapPost("/youtube", async youtubeSubscriptionRequest =>
     if (await redditController.IsVideoAlreadySubmitted(videoFeed))
         return;
     
-    await redditController.SubmitVideoToReddit(videoFeed);
+    await redditController.HandleRedditSubmission(videoFeed);
 });
 
 await app.RunAsync();
