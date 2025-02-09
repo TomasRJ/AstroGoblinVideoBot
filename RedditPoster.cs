@@ -23,7 +23,11 @@ public class RedditPoster
         _redditHttpClient.DefaultRequestHeaders.Add("User-Agent", _config.RedditUserAgent);
         CreateRedditDatabase().Wait();
     }
-    
+    private void SetBasicAuthHeader()
+    {
+        var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_userSecret.RedditClientId}:{_userSecret.RedditSecret}"));
+        _redditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
+    }
     public async Task PostVideoToReddit(VideoFeed videoFeed)
     {
         if (!RedditOathTokenExist(out var oauthToken))
@@ -135,35 +139,7 @@ public class RedditPoster
         
         _logger.LogInformation("Successfully added the Reddit Oauth token to the database");
     }
-    #endregion
-    
-    public async Task AuthorizeForm(HttpContext redditRedirect, string stateString)
-    {
-        const string authorizeFormQuery = "SELECT Value FROM FormAuth WHERE Id = 'StateString'";
-        var authorizeFormStateString = await _sqLiteConnection.QueryFirstAsync<string>(authorizeFormQuery);
-        
-        byte[] bodyText;
-        if (authorizeFormStateString.Equals(stateString))
-        {
-            bodyText = "Authorization successful and state matches. "u8.ToArray();
-            await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
-            
-            _logger.LogInformation("Authorization successful and state matches");
-            return;
-        }
-        
-        _logger.LogError("The state string from reddit does not does not match the state string from the authorization form");
-        bodyText = "State does not match"u8.ToArray();
-        await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
-        
-        redditRedirect.Response.StatusCode = 400;
-    }
-    
-    private void SetBasicAuthHeader()
-    {
-        var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_userSecret.RedditClientId}:{_userSecret.RedditSecret}"));
-        _redditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
-    }
+    #endregion 
     
     private async Task SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
     {
@@ -196,6 +172,29 @@ public class RedditPoster
         await RedditPostModeration(submitResponse, videoFeed);
     }
     
+    public async Task AuthorizeForm(HttpContext redditRedirect, string stateString)
+    {
+        const string authorizeFormQuery = "SELECT Value FROM FormAuth WHERE Id = 'StateString'";
+        var authorizeFormStateString = await _sqLiteConnection.QueryFirstAsync<string>(authorizeFormQuery);
+        
+        byte[] bodyText;
+        if (authorizeFormStateString.Equals(stateString))
+        {
+            bodyText = "Authorization successful and state matches. "u8.ToArray();
+            await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
+            
+            _logger.LogInformation("Authorization successful and state matches");
+            return;
+        }
+        
+        _logger.LogError("The state string from reddit does not does not match the state string from the authorization form");
+        bodyText = "State does not match"u8.ToArray();
+        await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
+        
+        redditRedirect.Response.StatusCode = 400;
+    }
+
+    #region Database
     private const string RedditDb = "reddit.sqlite";
     private readonly SQLiteConnection _sqLiteConnection = new($"Data Source={RedditDb};Version=3;");
     private async Task CreateRedditDatabase()
@@ -222,37 +221,6 @@ public class RedditPoster
         await _sqLiteConnection.ExecuteAsync(postsInsertQuery, stickiedPosts);
 
         _logger.LogInformation("Successfully created the Reddit database");
-    }
-    
-    #region RedditPostModeration
-    private async Task RedditPostModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
-    {
-        _logger.LogInformation("Starting Reddit post moderation");
-        var oldRedditPostId = await GetOldestRedditStickyPostId();
-        _logger.LogInformation("Successfully got the oldest Reddit sticky post: {RedditPostId}", oldRedditPostId);
-        
-        await UpdateRedditStickyPostsDb(oldRedditPostId, submitResponse, videoFeed);
-        
-        await UnstickyOldRedditPost(oldRedditPostId);
-        
-        await StickyNewRedditPost(submitResponse);
-        _logger.LogInformation("Successfully finished Reddit post moderation");
-    }
-    
-    public async Task<bool> IsVideoAlreadyPosted(VideoFeed videoFeed)
-    {
-        _logger.LogInformation("Checking if the Youtube video exists in the database");
-        const string doesVideoExistsQuery = "SELECT EXISTS(SELECT 1 FROM Posts WHERE YoutubeVideoId = @youtubeVideoId)";
-        var result = await _sqLiteConnection.QueryFirstAsync<bool>(doesVideoExistsQuery, new { youtubeVideoId = videoFeed.Entry.VideoId });
-        
-        if (result)
-        {
-            _logger.LogInformation("The Youtube video already exists in the database, skipping the Reddit post submission");
-            return true;
-        }
-        
-        _logger.LogInformation("The Youtube video does not exist in the database, continuing with the Reddit post submission");
-        return false;
     }
     
     private async Task<List<object>> GetPosts()
@@ -286,7 +254,7 @@ public class RedditPoster
             })
             .ToList<object>();
     }
-
+    
     private async Task<SubredditPostsInfo> FetchUserPosts(string url)
     {
         SetBasicAuthHeader();
@@ -297,6 +265,38 @@ public class RedditPoster
         
         _logger.LogError("Failed to get stickied posts from Reddit, got the following response: {Response}", await response.Content.ReadAsStringAsync());
         throw new Exception("Failed to get stickied posts from Reddit");
+    }
+    
+    public async Task<bool> IsVideoAlreadyPosted(VideoFeed videoFeed)
+    {
+        _logger.LogInformation("Checking if the Youtube video exists in the database");
+        const string doesVideoExistsQuery = "SELECT EXISTS(SELECT 1 FROM Posts WHERE YoutubeVideoId = @youtubeVideoId)";
+        var result = await _sqLiteConnection.QueryFirstAsync<bool>(doesVideoExistsQuery, new { youtubeVideoId = videoFeed.Entry.VideoId });
+        
+        if (result)
+        {
+            _logger.LogInformation("The Youtube video already exists in the database, skipping the Reddit post submission");
+            return true;
+        }
+        
+        _logger.LogInformation("The Youtube video does not exist in the database, continuing with the Reddit post submission");
+        return false;
+    }
+    #endregion
+    
+    #region RedditPostModeration
+    private async Task RedditPostModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
+    {
+        _logger.LogInformation("Starting Reddit post moderation");
+        var oldRedditPostId = await GetOldestRedditStickyPostId();
+        _logger.LogInformation("Successfully got the oldest Reddit sticky post: {RedditPostId}", oldRedditPostId);
+        
+        await UpdateRedditStickyPostsDb(oldRedditPostId, submitResponse, videoFeed);
+        
+        await UnstickyOldRedditPost(oldRedditPostId);
+        
+        await StickyNewRedditPost(submitResponse);
+        _logger.LogInformation("Successfully finished Reddit post moderation");
     }
 
     private async Task<string> GetOldestRedditStickyPostId()
