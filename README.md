@@ -75,7 +75,7 @@ Here is an example the XML data PubSubHubbub sends to server when a new video is
 </entry></feed>
 ```
 
-Here is an example of the format of JSON response after making a successful reddit submission:
+Here is an example of the JSON response after making a successful Reddit submission:
 ```json
 {"json": {"errors": [], "data": {"url": "https://www.reddit.com/r/astrogoblin/comments/1f50b8d/this_is_a_dumb_game_for_babies/", "drafts_count": 0, "id": "1f50b8d", "name": "t3_1f50b8d"}}}
 ```
