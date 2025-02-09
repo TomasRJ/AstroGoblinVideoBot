@@ -2,7 +2,7 @@
 
 namespace AstroGoblinVideoBot.Model;
 
-public readonly struct SubredditPostsInfo
+public readonly struct RedditSubmissions
 {
     [JsonPropertyName("data")]
     public SubredditData Data { get; init; }

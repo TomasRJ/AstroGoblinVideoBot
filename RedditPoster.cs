@@ -255,13 +255,13 @@ public class RedditPoster
             .ToList<object>();
     }
     
-    private async Task<SubredditPostsInfo> FetchUserPosts(string url)
+    private async Task<RedditSubmissions> FetchUserPosts(string url)
     {
         SetBasicAuthHeader();
         var response = await _redditHttpClient.GetAsync(url);
 
         if (response.StatusCode == HttpStatusCode.OK)
-            return await response.Content.ReadFromJsonAsync<SubredditPostsInfo>();
+            return await response.Content.ReadFromJsonAsync<RedditSubmissions>();
         
         _logger.LogError("Failed to get stickied posts from Reddit, got the following response: {Response}", await response.Content.ReadAsStringAsync());
         throw new Exception("Failed to get stickied posts from Reddit");
