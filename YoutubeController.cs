@@ -5,7 +5,7 @@ using AstroGoblinVideoBot.Model;
 
 namespace AstroGoblinVideoBot;
 
-public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger logger)
+public class YoutubeController(Credentials userSecret, Config config, ILogger logger)
 {
     private readonly HttpClient _youtubeHttpClient = new();
     

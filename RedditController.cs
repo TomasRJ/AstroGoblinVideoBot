@@ -8,14 +8,14 @@ using Dapper;
 
 namespace AstroGoblinVideoBot;
 
-public class RedditPoster
+public class RedditController
 {
     private readonly Config _config;
     private readonly Credentials _userSecret;
     private readonly HttpClient _redditHttpClient = new();
     private readonly ILogger _logger;
 
-    public RedditPoster(Credentials credentials, Config config, ILogger logger)
+    public RedditController(Credentials credentials, Config config, ILogger logger)
     {
         _userSecret = credentials;
         _config = config;

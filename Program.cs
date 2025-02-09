@@ -40,10 +40,10 @@ app.UseStatusCodePages();
 var config = new ConfigurationBuilder().AddJsonFile("config.json", optional:false).Build().Get<Config>();
 var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>(optional:false).Build().Get<Credentials>();
 
-var youtubeSubscriber = new YoutubeSubscriber(userSecret, config, logger);
-var redditPoster = new RedditPoster(userSecret, config, logger);
+var youtubeController = new YoutubeController(userSecret, config, logger);
+var redditController = new RedditController(userSecret, config, logger);
 
-var isSubscribed = await youtubeSubscriber.SubscribeToChannel();
+var isSubscribed = await youtubeController.SubscribeToChannel();
 if (!isSubscribed)
     return;
 
@@ -72,12 +72,12 @@ app.MapGet("/youtube", async pubSubHubbub =>
         {
             await Task.Delay(leaseSecondsInt * 1000, shutdownToken);
             logger.LogInformation("Resubscribing to Google PubSubHubbub");
-            await youtubeSubscriber.SubscribeToChannel();
+            await youtubeController.SubscribeToChannel();
         }, shutdownToken);
         return;
     }
     
-    logger.LogInformation("Got unknown Google PubSubHubbub request: {Query}", query);
+    logger.LogInformation("Got unknown request at the /youtube endpoint: {Query}", query);
     pubSubHubbub.Response.StatusCode = 200;
 });
 
@@ -96,25 +96,25 @@ app.MapGet("/redditRedirect",async redditRedirect =>
         return;
     }
     
-    await redditPoster.SaveOauthTokenToDb(code);
+    await redditController.SaveOauthTokenToDb(code);
     
     const string doesStateStringExistQuery = "SELECT EXISTS(SELECT 1 FROM FormAuth WHERE Id = 'StateString')";
     var doesStateStringExist = await sqLiteConnection.QueryFirstAsync<bool>(doesStateStringExistQuery);
     
     if(doesStateStringExist) 
-        await redditPoster.AuthorizeForm(redditRedirect, state);
+        await redditController.AuthorizeForm(redditRedirect, state);
     else
         logger.LogError("State string does not exist in the database");
 });
 
 app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
-    var videoFeed = await youtubeSubscriber.GetVideoFeed(youtubeSubscriptionRequest);
+    var videoFeed = await youtubeController.GetVideoFeed(youtubeSubscriptionRequest);
     
-    if (await redditPoster.IsVideoAlreadySubmitted(videoFeed))
+    if (await redditController.IsVideoAlreadySubmitted(videoFeed))
         return;
     
-    await redditPoster.SubmitVideoToReddit(videoFeed);
+    await redditController.SubmitVideoToReddit(videoFeed);
 });
 
 await app.RunAsync();
