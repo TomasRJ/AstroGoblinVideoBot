@@ -164,7 +164,7 @@ public class RedditPoster
         if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0)
         {
             _logger.LogError("Failed to submit video to Reddit, got the following response: {Errors}",
-                submitResponse.Details.Errors);
+               string.Join(",", submitResponse.Details.Errors));
             return;
         }
         
