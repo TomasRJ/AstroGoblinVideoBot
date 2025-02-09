@@ -79,10 +79,10 @@ public class YoutubeSubscriber(Credentials userSecret, Config config, ILogger lo
         
         if (hashString.Equals(signature.ToUpper()))
         {
-           logger.LogInformation("The Google PubSubHubbub post request HMAC signature is valid");
+           logger.LogInformation("The Google PubSubHubbub POST request HMAC signature is valid");
            return true;
         }
-        logger.LogError("The Google PubSubHubbub post request HMAC signature verification failed, expected {Expected} but got {Actual}", hashString, signature.ToUpper());
+        logger.LogError("The Google PubSubHubbub POST request HMAC signature verification failed, expected {Expected} but got {Actual}", hashString, signature.ToUpper());
         return false;
     }
     

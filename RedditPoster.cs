@@ -28,7 +28,30 @@ public class RedditPoster
         var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_userSecret.RedditClientId}:{_userSecret.RedditSecret}"));
         _redditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
     }
-    public async Task PostVideoToReddit(VideoFeed videoFeed)
+    
+    public async Task AuthorizeForm(HttpContext redditRedirect, string stateString)
+    {
+        const string authorizeFormQuery = "SELECT Value FROM FormAuth WHERE Id = 'StateString'";
+        var authorizeFormStateString = await _sqLiteConnection.QueryFirstAsync<string>(authorizeFormQuery);
+        
+        byte[] bodyText;
+        if (authorizeFormStateString.Equals(stateString))
+        {
+            bodyText = "Authorization successful and state matches. "u8.ToArray();
+            await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
+            
+            _logger.LogInformation("Authorization successful and state matches");
+            return;
+        }
+        
+        _logger.LogError("The state string from reddit does not does not match the state string from the authorization form");
+        bodyText = "State does not match"u8.ToArray();
+        await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
+        
+        redditRedirect.Response.StatusCode = 400;
+    }
+    
+    public async Task SubmitVideoToReddit(VideoFeed videoFeed)
     {
         if (!RedditOathTokenExist(out var oauthToken))
         {
@@ -40,6 +63,37 @@ public class RedditPoster
             oauthToken = await RefreshRedditOathToken(oauthToken.RefreshToken);
         
         await SubmitVideo(oauthToken, videoFeed);
+    }
+    
+    private async Task SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
+    {
+        _logger.LogInformation("Submitting video to Reddit");
+        _redditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", oauthToken.AccessToken);
+        var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            { "api_type", "json" },
+            { "extension", "json" },
+            { "flair_id", _userSecret.SubmitFlairId },
+            { "kind", "link" },
+            { "resubmit", "true" },
+            { "sendreplies", "false" },
+            { "sr",  _config.Subreddit },
+            { "title", videoFeed.Entry.Title },
+            { "url", videoFeed.Entry.Link.Href }
+        });
+        
+        var response = await _redditHttpClient.PostAsync(_config.RedditSubmitUrl, content);
+        var submitResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
+        
+        if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0)
+        {
+            _logger.LogError("Failed to submit video to Reddit, got the following response: {Errors}",
+                string.Join(",", submitResponse.Details.Errors));
+            return;
+        }
+        
+        _logger.LogInformation("Successfully submitted video to Reddit");
+        await RedditSubmissionModeration(submitResponse, videoFeed);
     }
 
     #region OauthToken
@@ -66,31 +120,6 @@ public class RedditPoster
         
         var responseContent = await authResponse.Content.ReadAsStringAsync();
         _logger.LogError("Failed to get Oauth token from Reddit, got the following response: {Response}", responseContent);
-    }
-    
-    private async Task<OauthToken> RefreshRedditOathToken (string refreshToken)
-    {
-        _logger.LogInformation("Refreshing the Reddit Oauth token");
-        SetBasicAuthHeader();
-        var content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            { "grant_type", "refresh_token" },
-            { "refresh_token", refreshToken }
-        });
-        
-        var authResponse = await _redditHttpClient.PostAsync(_config.RedditAccessTokenUrl, content);
-        
-        if (authResponse.StatusCode == HttpStatusCode.OK)
-        {
-            var oauthToken = await authResponse.Content.ReadFromJsonAsync<OauthToken>();
-            await AddOauthTokenToDb(oauthToken);
-            _logger.LogInformation("Successfully got refreshed Reddit Oauth token");
-            return oauthToken;
-        }
-        
-        var responseContent = await authResponse.Content.ReadAsStringAsync();
-        _logger.LogError("Failed to refresh the Reddit Oauth token, got the following response: {Response}", responseContent);
-        return new OauthToken();
     }
         
     private bool RedditOathTokenExist(out OauthToken oauthToken)
@@ -128,6 +157,31 @@ public class RedditPoster
         return false;
     }
     
+    private async Task<OauthToken> RefreshRedditOathToken (string refreshToken)
+    {
+        _logger.LogInformation("Refreshing the Reddit Oauth token");
+        SetBasicAuthHeader();
+        var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            { "grant_type", "refresh_token" },
+            { "refresh_token", refreshToken }
+        });
+        
+        var authResponse = await _redditHttpClient.PostAsync(_config.RedditAccessTokenUrl, content);
+        
+        if (authResponse.StatusCode == HttpStatusCode.OK)
+        {
+            var oauthToken = await authResponse.Content.ReadFromJsonAsync<OauthToken>();
+            await AddOauthTokenToDb(oauthToken);
+            _logger.LogInformation("Successfully got refreshed Reddit Oauth token");
+            return oauthToken;
+        }
+        
+        var responseContent = await authResponse.Content.ReadAsStringAsync();
+        _logger.LogError("Failed to refresh the Reddit Oauth token, got the following response: {Response}", responseContent);
+        return new OauthToken();
+    }
+    
     private async Task AddOauthTokenToDb(OauthToken oauthToken)
     {
         _logger.LogInformation("Adding the Reddit Oauth token to the database");
@@ -140,59 +194,6 @@ public class RedditPoster
         _logger.LogInformation("Successfully added the Reddit Oauth token to the database");
     }
     #endregion 
-    
-    private async Task SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
-    {
-        _logger.LogInformation("Submitting video to Reddit");
-        _redditHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", oauthToken.AccessToken);
-        var content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            { "api_type", "json" },
-            { "extension", "json" },
-            { "flair_id", _userSecret.SubmitFlairId },
-            { "kind", "link" },
-            { "resubmit", "true" },
-            { "sendreplies", "false" },
-            { "sr",  _config.Subreddit },
-            { "title", videoFeed.Entry.Title },
-            { "url", videoFeed.Entry.Link.Href }
-        });
-        
-        var response = await _redditHttpClient.PostAsync(_config.RedditSubmitUrl, content);
-        var submitResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
-        
-        if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0)
-        {
-            _logger.LogError("Failed to submit video to Reddit, got the following response: {Errors}",
-               string.Join(",", submitResponse.Details.Errors));
-            return;
-        }
-        
-        _logger.LogInformation("Successfully submitted video to Reddit");
-        await RedditPostModeration(submitResponse, videoFeed);
-    }
-    
-    public async Task AuthorizeForm(HttpContext redditRedirect, string stateString)
-    {
-        const string authorizeFormQuery = "SELECT Value FROM FormAuth WHERE Id = 'StateString'";
-        var authorizeFormStateString = await _sqLiteConnection.QueryFirstAsync<string>(authorizeFormQuery);
-        
-        byte[] bodyText;
-        if (authorizeFormStateString.Equals(stateString))
-        {
-            bodyText = "Authorization successful and state matches. "u8.ToArray();
-            await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
-            
-            _logger.LogInformation("Authorization successful and state matches");
-            return;
-        }
-        
-        _logger.LogError("The state string from reddit does not does not match the state string from the authorization form");
-        bodyText = "State does not match"u8.ToArray();
-        await redditRedirect.Response.BodyWriter.WriteAsync(bodyText);
-        
-        redditRedirect.Response.StatusCode = 400;
-    }
 
     #region Database
     private const string RedditDb = "reddit.sqlite";
@@ -215,36 +216,36 @@ public class RedditPoster
         await _sqLiteConnection.ExecuteAsync(createRedditAuthTableQuery);
         await _sqLiteConnection.ExecuteAsync(createFormAuthTableQuery);
         
-        var stickiedPosts = await GetPosts();
+        var stickiedSubmissions = await GetPosts();
         
-        const string postsInsertQuery = "INSERT INTO Posts (YoutubeVideoId, RedditPostId, Timestamp, Stickied) VALUES (@YoutubeVideoId, @RedditPostId, @Timestamp, @Stickied)";
-        await _sqLiteConnection.ExecuteAsync(postsInsertQuery, stickiedPosts);
+        const string insertSubmissionsQuery = "INSERT INTO Posts (YoutubeVideoId, RedditPostId, Timestamp, Stickied) VALUES (@YoutubeVideoId, @RedditPostId, @Timestamp, @Stickied)";
+        await _sqLiteConnection.ExecuteAsync(insertSubmissionsQuery, stickiedSubmissions);
 
         _logger.LogInformation("Successfully created the Reddit database");
     }
     
     private async Task<List<object>> GetPosts()
     {
-        _logger.LogInformation("Getting stickied posts from Reddit");
+        _logger.LogInformation("Getting stickied submissions from Reddit");
         
-        var subredditPosts = await FetchUserPosts(_config.UserPostsInfo);
+        var userSubmissions = await FetchUserSubmissions(_config.UserSubmissionsInfo);
         
-        if (subredditPosts.Data.After != null)
+        if (userSubmissions.Data.After != null)
         {
-            var after = subredditPosts.Data.After;
+            var after = userSubmissions.Data.After;
             var page = 2;
             while (after != null)
             {
-                _logger.LogInformation("There are more than 25 posts, getting page {Page} of Reddit posts", page++);
-                var nextPosts = await FetchUserPosts($"{_config.UserPostsInfo}?after={after}");
-                subredditPosts.Data.Children.AddRange(nextPosts.Data.Children);
-                after = nextPosts.Data.After;
+                _logger.LogInformation("There are more than 25 submissions, getting page {Page} of Reddit submissions", page++);
+                var olderSubmissions = await FetchUserSubmissions($"{_config.UserSubmissionsInfo}?after={after}");
+                userSubmissions.Data.Children.AddRange(olderSubmissions.Data.Children);
+                after = olderSubmissions.Data.After;
             }
         }
 
-        _logger.LogInformation("Successfully got stickied posts from Reddit");
+        _logger.LogInformation("Successfully got all Reddit submissions");
 
-        return subredditPosts.Data.Children
+        return userSubmissions.Data.Children
             .Select(child => new
             {
                 YoutubeVideoId = child.Data.Url.Split("?v=").Last(),
@@ -255,7 +256,7 @@ public class RedditPoster
             .ToList<object>();
     }
     
-    private async Task<RedditSubmissions> FetchUserPosts(string url)
+    private async Task<RedditSubmissions> FetchUserSubmissions(string url)
     {
         SetBasicAuthHeader();
         var response = await _redditHttpClient.GetAsync(url);
@@ -263,11 +264,11 @@ public class RedditPoster
         if (response.StatusCode == HttpStatusCode.OK)
             return await response.Content.ReadFromJsonAsync<RedditSubmissions>();
         
-        _logger.LogError("Failed to get stickied posts from Reddit, got the following response: {Response}", await response.Content.ReadAsStringAsync());
-        throw new Exception("Failed to get stickied posts from Reddit");
+        _logger.LogError("Failed to get stickied submission from Reddit, got the following response: {Response}", await response.Content.ReadAsStringAsync());
+        throw new Exception("Failed to get stickied submissions from Reddit");
     }
     
-    public async Task<bool> IsVideoAlreadyPosted(VideoFeed videoFeed)
+    public async Task<bool> IsVideoAlreadySubmitted(VideoFeed videoFeed)
     {
         _logger.LogInformation("Checking if the Youtube video exists in the database");
         const string doesVideoExistsQuery = "SELECT EXISTS(SELECT 1 FROM Posts WHERE YoutubeVideoId = @youtubeVideoId)";
@@ -275,25 +276,25 @@ public class RedditPoster
         
         if (result)
         {
-            _logger.LogInformation("The Youtube video already exists in the database, skipping the Reddit post submission");
+            _logger.LogInformation("The Youtube video already exists in the database, skipping the Reddit submission");
             return true;
         }
         
-        _logger.LogInformation("The Youtube video does not exist in the database, continuing with the Reddit post submission");
+        _logger.LogInformation("The Youtube video does not exist in the database, continuing with the Reddit submission");
         return false;
     }
     #endregion
     
-    #region RedditPostModeration
-    private async Task RedditPostModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
+    #region RedditModeration
+    private async Task RedditSubmissionModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
-        _logger.LogInformation("Starting Reddit post moderation");
+        _logger.LogInformation("Starting moderation of Reddit submissions");
         var oldRedditPostId = await GetOldestRedditStickyPostId();
-        _logger.LogInformation("Successfully got the oldest Reddit sticky post: {RedditPostId}", oldRedditPostId);
+        _logger.LogInformation("Successfully got the oldest stickied Reddit submission: {RedditPostId}", oldRedditPostId);
         
         await InsertNewVideo(submitResponse, videoFeed);
         
-        // Sticking a post immediately after submitting it down-ranks it in the Reddit algorithm.
+        // Sticking a submission immediately after submitting it down-ranks it in the Reddit algorithm.
         // This check makes the 2nd and 3rd most recent video sticky instead of the 1st and 2nd most recent video. 
         if (await IsPreviousVideoStickied(videoFeed))
             return;
@@ -303,12 +304,12 @@ public class RedditPoster
         await UnstickyOldRedditPost(oldRedditPostId);
         
         await StickyNewRedditPost(submitResponse);
-        _logger.LogInformation("Successfully finished Reddit post moderation");
+        _logger.LogInformation("Successfully finished moderation of Reddit submissions");
     }
     
     private async Task<string> GetOldestRedditStickyPostId()
     {
-        _logger.LogInformation("Getting the oldest Reddit sticky post");
+        _logger.LogInformation("Getting the oldest Reddit sticky submission");
         const string oldestRedditStickyPostQuery = "SELECT RedditPostId FROM Posts WHERE Stickied = 1 ORDER BY Timestamp LIMIT 1";
         return await _sqLiteConnection.QueryFirstAsync<string>(oldestRedditStickyPostQuery);
     }
@@ -321,7 +322,7 @@ public class RedditPoster
     
     private async Task InsertNewVideo(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
-        _logger.LogInformation("Updating the Reddit posts database");
+        _logger.LogInformation("Inserting the new Reddit submission");
 
         const string insertNewestPostQuery = "INSERT INTO Posts (YoutubeVideoId, RedditPostId, Timestamp, Stickied) VALUES (@YoutubeVideoId, @RedditPostId, @Timestamp, 0)";
         await _sqLiteConnection.ExecuteAsync(insertNewestPostQuery, new 
@@ -331,7 +332,7 @@ public class RedditPoster
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() 
             });
 
-        _logger.LogInformation("Successfully updated the Reddit posts database");
+        _logger.LogInformation("Successfully inserted the new Reddit submission");
     }
 
     private async Task UpdatePreviousVideo(string oldRedditPostId, VideoFeed videoFeed)
@@ -352,7 +353,7 @@ public class RedditPoster
 
     private async Task UnstickyOldRedditPost(string oldRedditPostId)
     {
-        _logger.LogInformation("Unsticking the old Reddit post");
+        _logger.LogInformation("Unsticking the old Reddit submission");
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "api_type", "json" },
@@ -367,15 +368,15 @@ public class RedditPoster
         if (response.StatusCode != HttpStatusCode.OK || unstickyPostResponse.Details.Errors.Count != 0)
         {
             var responseContent = await response.Content.ReadAsStringAsync();
-            _logger.LogError("Failed to unsticky the old Reddit post, got the following response: {Response}", responseContent);
+            _logger.LogError("Failed to unsticky the old Reddit submission, got the following response: {Response}", responseContent);
         }
         
-        _logger.LogInformation("Successfully unstuck the old Reddit post");
+        _logger.LogInformation("Successfully unstuck the old Reddit submission");
     }
 
     private async Task StickyNewRedditPost(SubmitResponse submitResponse)
     {
-        _logger.LogInformation("Sticking the new Reddit post");
+        _logger.LogInformation("Sticking the new Reddit submission");
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "api_type", "json" },
@@ -390,10 +391,10 @@ public class RedditPoster
         if (response.StatusCode != HttpStatusCode.OK || stickyPostResponse.Details.Errors.Count != 0)
         {
             var responseContent = await response.Content.ReadAsStringAsync();
-            _logger.LogError("Failed to sticky the new Reddit post, got the following response: {Response}", responseContent);
+            _logger.LogError("Failed to sticky the new Reddit submission, got the following response: {Response}", responseContent);
         }
         
-        _logger.LogInformation("Successfully stuck the new Reddit post");
+        _logger.LogInformation("Successfully stuck the new Reddit submission");
     }
     #endregion    
 }

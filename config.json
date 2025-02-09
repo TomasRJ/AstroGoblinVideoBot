@@ -4,7 +4,7 @@
   "RedditSubmitUrl": "https://oauth.reddit.com/api/submit",
   "RedditStickyUrl": "https://oauth.reddit.com/api/set_subreddit_sticky",
   "RedditUserAgent": "AstroGoblinVideoBot v1.0 by u/AstroGoblinVideoBot",
-  "UserPostsInfo": "https://www.reddit.com/user/AstroGoblinVideoBot/submitted.json",
+  "UserSubmissionsInfo": "https://www.reddit.com/user/AstroGoblinVideoBot/submitted.json",
   "Subreddit": "astrogoblin",
   "GooglePubSubUrl": "https://pubsubhubbub.appspot.com/subscribe",
   "GooglePubSubTopic": "https://www.youtube.com/xml/feeds/videos.xml?channel_id=UCRb4V8WHojbGqEvzL_9g03Q"

@@ -111,10 +111,10 @@ app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
     var videoFeed = await youtubeSubscriber.GetVideoFeed(youtubeSubscriptionRequest);
     
-    if (await redditPoster.IsVideoAlreadyPosted(videoFeed))
+    if (await redditPoster.IsVideoAlreadySubmitted(videoFeed))
         return;
     
-    await redditPoster.PostVideoToReddit(videoFeed);
+    await redditPoster.SubmitVideoToReddit(videoFeed);
 });
 
 await app.RunAsync();

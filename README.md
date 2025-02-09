@@ -5,11 +5,11 @@ This a C# .NET 8 project I made to have a "YouTube bot" reddit account submit ne
 
 ### Features:
 - Moderation of the 2nd and 3rd latest submission by unsticking 3rd most recent video submission and stickying the 2nd submission.
-- Prevention of posting the same video multiple times by storing the submission and video details in a SQLite database.
-- The ability to get previous reddit posts details by using Reddit's JSON URL endpoint feature. This URL is set in the "UserPostsInfo" in the **config.json** file.
-- A front-end, where the /authorize endpoint has a HTML form to make a ["Reddit Authorize url"](https://github.com/reddit-archive/reddit/wiki/OAuth2#authorization) where the submit button takes you to the Reddit OAuth2 page to authorize the bot account to submit and moderate posts.
+- Prevention of submitting the same video multiple times by storing the submission and video details in a SQLite database.
+- The ability to get details of all previous reddit submissions by using Reddit's JSON URL endpoint feature. This URL is set in the "UserPostsInfo" in the **config.json** file.
+- A front-end, where the /authorize endpoint has a HTML form to make a ["Reddit Authorize url"](https://github.com/reddit-archive/reddit/wiki/OAuth2#authorization) where the submit button takes you to the Reddit OAuth2 page to authorize the bot account to submit and moderate submissions.
 - HMAC signature verification to verify the authenticity of the PubSubHubbub Hub POST requests.
-- Usage of submission flairs to flair the new posts with a specific flair. Use the [Reddit API](https://old.reddit.com/dev/api/oauth#GET_api_link_flair_v2) to get the flair ids for your subreddit.
+- Usage of submission flairs to flair the new submission with a specific flair. Use the [Reddit API](https://old.reddit.com/dev/api/oauth#GET_api_link_flair_v2) to get the flair ids for your subreddit.
 - Automatic refreshing of the Reddit OAuth2 access token when it expires.
 - Automatic refreshing of the PubSubHubbub Hub subscription when it expires.
 - Support for running with a --enable-http-logging to enable [HTTP Logging](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.httploggingbuilderextensions.usehttplogging?view=aspnetcore-9.0&viewFallbackFrom=net-8.0)
@@ -27,7 +27,7 @@ If you want to use this project, you will need:
 - Either the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or [Docker](https://www.docker.com/products/docker-desktop/) to run the project.
 - To create a Reddit account and create a Reddit app to get the RedditClientId and RedditSecret. I would recommend using the [Postman Reddit API collection](https://www.postman.com/lovingmydemons/workspace/reddit-api/collection/30347094-3ab37a1f-dd25-4f23-92a4-9142dfd77ffa?action=share&creator=32597187) and read the Reddit API documentation [on GitHub](https://github.com/reddit-archive/reddit/wiki/OAuth2) and on [Reddit](https://www.reddit.com/dev/api/oauth) how the Reddit API authorization and authentication works.
 - The YouTube channel ID for the GooglePubSubTopic value in the **config.json** file. You can get the channel ID by going to this website: https://www.streamweasels.com/tools/youtube-channel-id-and-user-id-convertor/
-- To edit the **config.json** file with your own UserAgent, UserPostsInfo url and Subreddit values.
+- To edit the **config.json** file with your own UserAgent, UserSubmissionsInfo url and Subreddit values.
 - To create a [.NET User Secret](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets?view=aspnetcore-9.0&tabs=windows#enable-secret-storage) using the following JSON format and replace the values with your own:
 
     ```json
