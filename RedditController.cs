@@ -265,7 +265,7 @@ public class RedditController
             return await response.Content.ReadFromJsonAsync<RedditSubmissions>();
         
         _logger.LogError("Failed to get stickied submission from Reddit, got the following response: {Response}", await response.Content.ReadAsStringAsync());
-        throw new Exception("Failed to get stickied submissions from Reddit");
+        throw new InvalidOperationException("Failed to get stickied submissions from Reddit");
     }
     
     public async Task<bool> IsVideoAlreadySubmitted(VideoFeed videoFeed)
@@ -290,7 +290,7 @@ public class RedditController
     {
         _logger.LogInformation("Starting moderation of Reddit submissions");
         var oldRedditPostId = await GetOldestRedditStickyPostId();
-        _logger.LogInformation("Successfully got the oldest stickied Reddit submission: {RedditPostId}", oldRedditPostId);
+        _logger.LogDebug("Successfully got the oldest stickied Reddit submission: {RedditPostId}", oldRedditPostId);
         
         await InsertNewVideo(submitResponse, videoFeed);
         
@@ -322,7 +322,7 @@ public class RedditController
     
     private async Task InsertNewVideo(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
-        _logger.LogInformation("Inserting the new Reddit submission");
+        _logger.LogDebug("Inserting the new Reddit submission");
 
         const string insertNewestPostQuery = "INSERT INTO Posts (YoutubeVideoId, RedditPostId, Timestamp, Stickied) VALUES (@YoutubeVideoId, @RedditPostId, @Timestamp, 0)";
         await _sqLiteConnection.ExecuteAsync(insertNewestPostQuery, new 
@@ -332,7 +332,7 @@ public class RedditController
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() 
             });
 
-        _logger.LogInformation("Successfully inserted the new Reddit submission");
+        _logger.LogDebug("Successfully inserted the new Reddit submission");
     }
 
     private async Task UpdatePreviousVideo(string oldRedditPostId, VideoFeed videoFeed)
@@ -343,12 +343,13 @@ public class RedditController
             new { videoId = videoFeed.Entry.VideoId });
         const string previousVideoUpdateQuery = "UPDATE Posts SET Stickied = 1 WHERE YoutubeVideoId = @videoId";
         await _sqLiteConnection.ExecuteAsync(previousVideoUpdateQuery, new { videoId = previousVideoId });
-        _logger.LogInformation("Successfully updated the the previous video in the Reddit database");
         
-        _logger.LogInformation("Updating the 3rd latest video in the Reddit database");
+        _logger.LogDebug("Updating the 3rd latest video in the Reddit database");
         const string unstickyQuery = "UPDATE Posts SET Stickied = 0 WHERE RedditPostId = @redditPostId";
         await _sqLiteConnection.ExecuteAsync(unstickyQuery, new { redditPostId = oldRedditPostId });
-        _logger.LogInformation("Successfully the 3rd latest video in the Reddit database");
+        _logger.LogDebug("Successfully the 3rd latest video in the Reddit database");
+        
+        _logger.LogInformation("Successfully updated the the previous video in the Reddit database");
     }
 
     private async Task UnstickyOldRedditPost(string oldRedditPostId)
