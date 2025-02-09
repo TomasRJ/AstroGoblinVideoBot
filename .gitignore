@@ -489,3 +489,11 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Extra
+secrets.json
+reddit.sqlite
+publish
+logs
+bin
+.vs
