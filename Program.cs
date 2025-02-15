@@ -15,6 +15,7 @@ if (args.Contains("--save-logs"))
 {
     Directory.CreateDirectory("./logs");
     serilog = new LoggerConfiguration()
+        .MinimumLevel.Debug()
         .WriteTo.Console(outputTemplate: logFormat)
         .WriteTo.File(
             "logs/.log",
