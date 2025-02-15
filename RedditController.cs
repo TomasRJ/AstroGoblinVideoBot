@@ -23,6 +23,7 @@ public class RedditController
         _redditHttpClient.DefaultRequestHeaders.Add("User-Agent", _config.RedditUserAgent);
         CreateRedditDatabase().Wait();
     }
+    
     private void SetBasicAuthHeader()
     {
         var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_userSecret.RedditClientId}:{_userSecret.RedditSecret}"));
@@ -65,6 +66,7 @@ public class RedditController
         await SubmitVideo(oauthToken, videoFeed);
     }
     
+    private string _redditUrl = "";
     private async Task SubmitVideo(OauthToken oauthToken, VideoFeed videoFeed)
     {
         _logger.LogInformation("Submitting video to Reddit");
@@ -92,7 +94,9 @@ public class RedditController
             return;
         }
         
-        _logger.LogInformation("Successfully submitted video to Reddit");
+        _redditUrl = "https://redd.it/" + submitResponse.Details.Data.Id;
+        _logger.LogInformation("Successfully submitted video to Reddit at {RedditUrl}, with the following YouTube URL: {YouTubeUrl}", _redditUrl, videoFeed.Entry.Link.Href);
+        
         await RedditSubmissionModeration(submitResponse, videoFeed);
     }
 
@@ -200,7 +204,7 @@ public class RedditController
     private readonly SQLiteConnection _sqLiteConnection = new($"Data Source={RedditDb};Version=3;");
     private async Task CreateRedditDatabase()
     {
-        const string checkDbQuery = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Posts' OR name = 'RedditAuth' OR name = 'FormAuth')";
+        const string checkDbQuery = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Submissions' OR name = 'RedditAuth' OR name = 'FormAuth')";
         var dbExists = await _sqLiteConnection.QueryFirstAsync<bool>(checkDbQuery);
         if(dbExists)
         {
@@ -209,22 +213,22 @@ public class RedditController
         }
         
         _logger.LogInformation("The reddit database does not exist, creating it now");
-        const string createPostsTableQuery = "CREATE TABLE Posts (YoutubeVideoId TEXT NOT NULL, RedditPostId TEXT NOT NULL, Timestamp INTEGER NOT NULL, Stickied INTEGER NOT NULL, PRIMARY KEY (YoutubeVideoId))";
+        const string createSubmissionTableQuery = "CREATE TABLE Submissions (YoutubeVideoId TEXT NOT NULL, RedditSubmissionId TEXT NOT NULL, Timestamp INTEGER NOT NULL, Stickied INTEGER NOT NULL, PRIMARY KEY (YoutubeVideoId))";
         const string createRedditAuthTableQuery = "CREATE TABLE RedditAuth (Id INTEGER NOT NULL, OauthToken TEXT NOT NULL, Timestamp INTEGER NOT NULL, PRIMARY KEY (Id))";
         const string createFormAuthTableQuery = "CREATE TABLE FormAuth (Id TEXT NOT NULL, Value TEXT NOT NULL, PRIMARY KEY (Id))";
-        await _sqLiteConnection.ExecuteAsync(createPostsTableQuery);
+        await _sqLiteConnection.ExecuteAsync(createSubmissionTableQuery);
         await _sqLiteConnection.ExecuteAsync(createRedditAuthTableQuery);
         await _sqLiteConnection.ExecuteAsync(createFormAuthTableQuery);
         
-        var stickiedSubmissions = await GetPosts();
+        var stickiedSubmissions = await GetSubmissions();
         
-        const string insertSubmissionsQuery = "INSERT INTO Posts (YoutubeVideoId, RedditPostId, Timestamp, Stickied) VALUES (@YoutubeVideoId, @RedditPostId, @Timestamp, @Stickied)";
+        const string insertSubmissionsQuery = "INSERT INTO Submissions (YoutubeVideoId, RedditSubmissionId, Timestamp, Stickied) VALUES (@YoutubeVideoId, @RedditSubmissionId, @Timestamp, @Stickied)";
         await _sqLiteConnection.ExecuteAsync(insertSubmissionsQuery, stickiedSubmissions);
 
         _logger.LogInformation("Successfully created the Reddit database");
     }
     
-    private async Task<List<object>> GetPosts()
+    private async Task<List<object>> GetSubmissions()
     {
         _logger.LogInformation("Getting stickied submissions from Reddit");
         
@@ -249,7 +253,7 @@ public class RedditController
             .Select(child => new
             {
                 YoutubeVideoId = child.Data.Url.Split("?v=").Last(),
-                RedditPostId = child.Data.Name,
+                RedditSubmissionId = child.Data.Name,
                 Timestamp = child.Data.TimestampUtc,
                 Stickied = child.Data.Stickied ? 1 : 0
             })
@@ -271,7 +275,7 @@ public class RedditController
     public async Task<bool> IsVideoAlreadySubmitted(VideoFeed videoFeed)
     {
         _logger.LogInformation("Checking if the Youtube video exists in the database");
-        const string doesVideoExistsQuery = "SELECT EXISTS(SELECT 1 FROM Posts WHERE YoutubeVideoId = @youtubeVideoId)";
+        const string doesVideoExistsQuery = "SELECT EXISTS(SELECT 1 FROM Submissions WHERE YoutubeVideoId = @youtubeVideoId)";
         var result = await _sqLiteConnection.QueryFirstAsync<bool>(doesVideoExistsQuery, new { youtubeVideoId = videoFeed.Entry.VideoId });
         
         if (result)
@@ -288,114 +292,105 @@ public class RedditController
     #region RedditModeration
     private async Task RedditSubmissionModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
-        _logger.LogInformation("Starting moderation of Reddit submissions");
-        var oldRedditPostId = await GetOldestRedditStickyPostId();
-        _logger.LogDebug("Successfully got the oldest stickied Reddit submission: {RedditPostId}", oldRedditPostId);
-        
+        _logger.LogInformation("Starting moderation of the following Reddit submission: {RedditUrl}", _redditUrl);
         await InsertNewVideo(submitResponse, videoFeed);
         
         // Sticking a submission immediately after submitting it down-ranks it in the Reddit algorithm.
-        // This check makes the 2nd and 3rd most recent video sticky instead of the 1st and 2nd most recent video. 
-        if (await IsPreviousVideoStickied(videoFeed))
-            return;
+        // The rest of these methods makes the 2nd and 3rd most recent video sticky instead of the 1st and 2nd most recent video.
+        var oldRedditSubmissionId = await GetOldestRedditStickySubmissionsId();
+       
+        var previousRedditSubmissionId = await UpdatePreviousVideo(oldRedditSubmissionId, videoFeed);
         
-        await UpdatePreviousVideo(oldRedditPostId, videoFeed);
+        await UnstickyOldRedditSubmission(oldRedditSubmissionId);
         
-        await UnstickyOldRedditPost(oldRedditPostId);
-        
-        await StickyNewRedditPost(submitResponse);
+        await StickyRedditSubmission(previousRedditSubmissionId);
         _logger.LogInformation("Successfully finished moderation of Reddit submissions");
     }
     
-    private async Task<string> GetOldestRedditStickyPostId()
+    private async Task<string> GetOldestRedditStickySubmissionsId()
     {
-        _logger.LogInformation("Getting the oldest Reddit sticky submission");
-        const string oldestRedditStickyPostQuery = "SELECT RedditPostId FROM Posts WHERE Stickied = 1 ORDER BY Timestamp LIMIT 1";
-        return await _sqLiteConnection.QueryFirstAsync<string>(oldestRedditStickyPostQuery);
-    }
-    
-    private async Task<bool> IsPreviousVideoStickied(VideoFeed latestVideo)
-    {
-        const string latestVideoQuery = "SELECT Stickied FROM Posts WHERE YoutubeVideoId != @videoId ORDER BY Timestamp DESC";
-        return await _sqLiteConnection.QueryFirstAsync<bool>(latestVideoQuery, new { videoId = latestVideo.Entry.VideoId });
+        const string oldestRedditStickySubmissionQuery = "SELECT RedditSubmissionId FROM Submissions WHERE Stickied = 1 ORDER BY Timestamp LIMIT 1";
+        var oldRedditSubmissionId = await _sqLiteConnection.QueryFirstAsync<string>(oldestRedditStickySubmissionQuery);
+        _logger.LogInformation("Got the oldest stickied Reddit submission id: {Id}", oldRedditSubmissionId);
+        return oldRedditSubmissionId;
     }
     
     private async Task InsertNewVideo(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
-        _logger.LogDebug("Inserting the new Reddit submission");
+        _logger.LogDebug("Inserting the new Reddit submission to the Reddit database");
 
-        const string insertNewestPostQuery = "INSERT INTO Posts (YoutubeVideoId, RedditPostId, Timestamp, Stickied) VALUES (@YoutubeVideoId, @RedditPostId, @Timestamp, 0)";
-        await _sqLiteConnection.ExecuteAsync(insertNewestPostQuery, new 
+        const string insertNewestSubmissionQuery = "INSERT INTO Submissions (YoutubeVideoId, RedditSubmissionId, Timestamp, Stickied) VALUES (@YoutubeVideoId, @RedditSubmissionId, @Timestamp, 0)";
+        await _sqLiteConnection.ExecuteAsync(insertNewestSubmissionQuery, new 
             {
                 YoutubeVideoId = videoFeed.Entry.VideoId,
-                RedditPostId = submitResponse.Details.Data.Name,
+                RedditSubmissionId = submitResponse.Details.Data.Name,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() 
             });
 
         _logger.LogDebug("Successfully inserted the new Reddit submission");
     }
 
-    private async Task UpdatePreviousVideo(string oldRedditPostId, VideoFeed videoFeed)
+    private async Task<string> UpdatePreviousVideo(string oldRedditSubmissionId, VideoFeed videoFeed)
     {
-        _logger.LogInformation("Updating the previous video in the Reddit database");
-        const string getPreviousVideoIdQuery = "SELECT YoutubeVideoId FROM Posts WHERE YoutubeVideoId != @videoId ORDER BY Timestamp DESC";
+        const string getPreviousVideoIdQuery = "SELECT YoutubeVideoId FROM Submissions WHERE YoutubeVideoId != @videoId ORDER BY Timestamp DESC";
         var previousVideoId = await _sqLiteConnection.QueryFirstAsync<string>(getPreviousVideoIdQuery,
             new { videoId = videoFeed.Entry.VideoId });
-        const string previousVideoUpdateQuery = "UPDATE Posts SET Stickied = 1 WHERE YoutubeVideoId = @videoId";
+        _logger.LogInformation("Got the previously submitted YouTube video ID: {Id}", previousVideoId);
+        
+        const string previousVideoUpdateQuery = "UPDATE Submissions SET Stickied = 1 WHERE YoutubeVideoId = @videoId";
         await _sqLiteConnection.ExecuteAsync(previousVideoUpdateQuery, new { videoId = previousVideoId });
         
-        _logger.LogDebug("Updating the 3rd latest video in the Reddit database");
-        const string unstickyQuery = "UPDATE Posts SET Stickied = 0 WHERE RedditPostId = @redditPostId";
-        await _sqLiteConnection.ExecuteAsync(unstickyQuery, new { redditPostId = oldRedditPostId });
-        _logger.LogDebug("Successfully the 3rd latest video in the Reddit database");
+        const string unstickyQuery = "UPDATE Submissions SET Stickied = 0 WHERE RedditSubmissionId = @redditSubmissionId";
+        await _sqLiteConnection.ExecuteAsync(unstickyQuery, new { redditSubmissionId = oldRedditSubmissionId });
         
         _logger.LogInformation("Successfully updated the the previous video in the Reddit database");
+        return previousVideoId;
     }
 
-    private async Task UnstickyOldRedditPost(string oldRedditPostId)
+    private async Task UnstickyOldRedditSubmission(string oldRedditSubmissionId)
     {
-        _logger.LogInformation("Unsticking the old Reddit submission");
+        _logger.LogDebug("Unsticking the old Reddit submission");
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "api_type", "json" },
-            { "id", oldRedditPostId },
+            { "id", oldRedditSubmissionId },
             { "state", "false" }
         });
         
         var response = await _redditHttpClient.PostAsync(_config.RedditStickyUrl, content);
         
-        var unstickyPostResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
+        var unstickySubmissionResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
         
-        if (response.StatusCode != HttpStatusCode.OK || unstickyPostResponse.Details.Errors.Count != 0)
+        if (response.StatusCode != HttpStatusCode.OK || unstickySubmissionResponse.Details.Errors.Count != 0)
         {
             var responseContent = await response.Content.ReadAsStringAsync();
             _logger.LogError("Failed to unsticky the old Reddit submission, got the following response: {Response}", responseContent);
         }
         
-        _logger.LogInformation("Successfully unstuck the old Reddit submission");
+        _logger.LogInformation("Successfully unstuck the oldest stickied Reddit submission");
     }
 
-    private async Task StickyNewRedditPost(SubmitResponse submitResponse)
+    private async Task StickyRedditSubmission(string redditSubmissionId)
     {
-        _logger.LogInformation("Sticking the new Reddit submission");
+        _logger.LogDebug("Sticking the new Reddit submission");
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "api_type", "json" },
-            { "id", submitResponse.Details.Data.Name },
+            { "id", redditSubmissionId },
             { "state", "true" }
         });
         
         var response = await _redditHttpClient.PostAsync(_config.RedditStickyUrl, content);
         
-        var stickyPostResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
+        var stickySubmissionResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
         
-        if (response.StatusCode != HttpStatusCode.OK || stickyPostResponse.Details.Errors.Count != 0)
+        if (response.StatusCode != HttpStatusCode.OK || stickySubmissionResponse.Details.Errors.Count != 0)
         {
             var responseContent = await response.Content.ReadAsStringAsync();
             _logger.LogError("Failed to sticky the new Reddit submission, got the following response: {Response}", responseContent);
         }
         
-        _logger.LogInformation("Successfully stuck the new Reddit submission");
+        _logger.LogInformation("Successfully stuck the following Reddit submission: {RedditUrl}", _redditUrl);
     }
     #endregion    
 }
