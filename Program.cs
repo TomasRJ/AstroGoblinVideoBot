@@ -23,6 +23,7 @@ if (args.Contains("--save-logs"))
             rollingInterval: RollingInterval.Month
         ).CreateLogger();
 }
+
 builder.Services.AddSerilog(serilog);
 
 var app = builder.Build();
@@ -38,8 +39,8 @@ if (args.Contains("--enable-http-logging"))
     app.UseHttpLogging();
 app.UseStatusCodePages();
 
-var config = new ConfigurationBuilder().AddJsonFile("config.json", optional:false).Build().Get<Config>();
-var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>(optional:false).Build().Get<Credentials>();
+var config = new ConfigurationBuilder().AddJsonFile("config.json", false).Build().Get<Config>();
+var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>(false).Build().Get<Credentials>();
 
 var youtubeController = new YoutubeController(userSecret, config, logger);
 var redditController = new RedditController(userSecret, config, logger);
@@ -60,26 +61,26 @@ app.MapGet("/youtube", async pubSubHubbub =>
 });
 
 SQLiteConnection sqLiteConnection = new("Data Source=reddit.sqlite;Version=3;");
-app.MapGet("/redditRedirect",async redditRedirect =>
+app.MapGet("/redditRedirect", async redditRedirect =>
 {
     logger.LogInformation("Reddit redirect request received");
-    
+
     var query = redditRedirect.Request.Query;
     var code = query.ContainsKey("code") ? query["code"].ToString() : throw new InvalidOperationException();
     var state = query.ContainsKey("state") ? query["state"].ToString() : throw new InvalidOperationException();
-    
+
     if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state) || query.ContainsKey("error"))
     {
         logger.LogError("Got the following error from Reddit: {Error}", query["error"]!);
         return;
     }
-    
+
     await redditController.SaveOauthTokenToDb(code);
-    
+
     const string doesStateStringExistQuery = "SELECT EXISTS(SELECT 1 FROM FormAuth WHERE Id = 'StateString')";
     var doesStateStringExist = await sqLiteConnection.QueryFirstAsync<bool>(doesStateStringExistQuery);
-    
-    if(doesStateStringExist) 
+
+    if (doesStateStringExist)
         await redditController.AuthorizeForm(redditRedirect, state);
     else
         logger.LogError("State string does not exist in the database");
@@ -88,10 +89,10 @@ app.MapGet("/redditRedirect",async redditRedirect =>
 app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
     var videoFeed = await youtubeController.GetVideoFeed(youtubeSubscriptionRequest);
-    
+
     if (await redditController.IsVideoAlreadySubmitted(videoFeed))
         return;
-    
+
     await redditController.HandleRedditSubmission(videoFeed);
 });
 
