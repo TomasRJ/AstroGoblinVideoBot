@@ -4,6 +4,7 @@ using AstroGoblinVideoBot.Model;
 using Dapper;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder();
 builder.Services.AddRazorPages().WithRazorPagesRoot("/Frontend");
@@ -16,12 +17,16 @@ if (args.Contains("--save-logs"))
     Directory.CreateDirectory("./logs");
     serilog = new LoggerConfiguration()
         .MinimumLevel.Debug()
-        .WriteTo.Console(outputTemplate: logFormat)
+        .WriteTo.Console(
+            outputTemplate: logFormat,
+            restrictedToMinimumLevel: LogEventLevel.Information
+        )
         .WriteTo.File(
             "logs/.log",
             outputTemplate: logFormat,
             rollingInterval: RollingInterval.Month
-        ).CreateLogger();
+        )
+        .CreateLogger();
 }
 
 builder.Services.AddSerilog(serilog);
