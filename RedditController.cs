@@ -16,6 +16,7 @@ public class RedditController
     private readonly Credentials _userSecret;
 
     private string _redditUrl = "";
+    private int _redditModerationRetries;
 
     public RedditController(Credentials credentials, Config config, ILogger logger)
     {
@@ -93,8 +94,9 @@ public class RedditController
 
         if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0)
         {
+            var failedResponseContent = await response.Content.ReadAsStringAsync();
             _logger.LogError("Failed to submit video to Reddit, got the following response: {Errors}",
-                string.Join(",", submitResponse.Details.Errors));
+                failedResponseContent);
             return;
         }
 
@@ -132,6 +134,7 @@ public class RedditController
         var responseContent = await authResponse.Content.ReadAsStringAsync();
         _logger.LogError("Failed to get Oauth token from Reddit, got the following response: {Response}",
             responseContent);
+        throw new InvalidOperationException("Failed to refresh the Reddit Oauth token");
     }
 
     private bool RedditOathTokenExist(out OauthToken oauthToken)
@@ -193,7 +196,7 @@ public class RedditController
         var responseContent = await authResponse.Content.ReadAsStringAsync();
         _logger.LogError("Failed to refresh the Reddit Oauth token, got the following response: {Response}",
             responseContent);
-        return new OauthToken();
+        throw new InvalidOperationException("Failed to refresh the Reddit Oauth token");
     }
 
     private async Task AddOauthTokenToDb(OauthToken oauthToken)
@@ -393,9 +396,13 @@ public class RedditController
 
         if (response.StatusCode != HttpStatusCode.OK || unstickySubmissionResponse.Details.Errors.Count != 0)
         {
-            var responseContent = await response.Content.ReadAsStringAsync();
+            var failedResponseContent = await response.Content.ReadAsStringAsync();
             _logger.LogError("Failed to unsticky the old Reddit submission, got the following response: {Response}",
-                responseContent);
+                failedResponseContent);
+            if (response.StatusCode == HttpStatusCode.InternalServerError)
+                await RetryModeration(oldRedditSubmissionId, UnstickyOldRedditSubmission);
+
+            return;
         }
 
         _logger.LogInformation("Successfully unstuck the oldest stickied Reddit submission");
@@ -417,12 +424,30 @@ public class RedditController
 
         if (response.StatusCode != HttpStatusCode.OK || stickySubmissionResponse.Details.Errors.Count != 0)
         {
-            var responseContent = await response.Content.ReadAsStringAsync();
+            var failedResponseContent = await response.Content.ReadAsStringAsync();
             _logger.LogError("Failed to sticky the new Reddit submission, got the following response: {Response}",
-                responseContent);
+                failedResponseContent);
+            if (response.StatusCode == HttpStatusCode.InternalServerError)
+                await RetryModeration(redditSubmissionId, UnstickyOldRedditSubmission);
+            return;
         }
 
         _logger.LogInformation("Successfully stuck the following Reddit submission: {RedditUrl}", _redditUrl);
+    }
+    
+    private async Task RetryModeration(string redditSubmissionId, Func<string, Task> superMethod)
+    {
+        if (_redditModerationRetries > 5)
+        {
+            _logger.LogWarning("Retried {N} times to unsticky/sticky the post, but Reddit seems to be down at moment." +
+                               "The submission now has to be manually stickied", _redditModerationRetries);
+            return;
+        }
+        
+        _redditModerationRetries++;
+        await Task.Delay(_redditModerationRetries * 1000);
+        _logger.LogInformation("Got 500 HTTP error from Reddit, retrying with attempt nr: {Retry}", _redditModerationRetries);
+        await superMethod(redditSubmissionId);
     }
 
     #endregion
