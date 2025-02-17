@@ -15,7 +15,8 @@ public class RedditController
     private readonly HttpClient _redditHttpClient = new();
     private readonly Credentials _userSecret;
 
-    private string _redditUrl = "";
+    private const string RedditPrefixUrl = "https://redd.it/";
+    private string _newSubmissionUrl = "";
     private int _redditModerationRetries;
 
     public RedditController(Credentials credentials, Config config, ILogger logger)
@@ -100,10 +101,10 @@ public class RedditController
             return;
         }
 
-        _redditUrl = "https://redd.it/" + submitResponse.Details.Data.Id;
+        _newSubmissionUrl = RedditPrefixUrl + submitResponse.Details.Data.Id;
         _logger.LogInformation(
             "Successfully submitted video to Reddit at {RedditUrl}, with the following YouTube URL: {YouTubeUrl}",
-            _redditUrl, videoFeed.Entry.Link.Href);
+            _newSubmissionUrl, videoFeed.Entry.Link.Href);
 
         await RedditSubmissionModeration(submitResponse, videoFeed);
     }
@@ -321,12 +322,12 @@ public class RedditController
 
     private async Task RedditSubmissionModeration(SubmitResponse submitResponse, VideoFeed videoFeed)
     {
-        _logger.LogInformation("Starting moderation of the following Reddit submission: {RedditUrl}", _redditUrl);
+        _logger.LogInformation("Starting moderation of the following Reddit submission: {RedditUrl}", _newSubmissionUrl);
         await InsertNewVideo(submitResponse, videoFeed);
 
         // Sticking a submission immediately after submitting it down-ranks it in the Reddit algorithm.
         // The rest of these methods makes the 2nd and 3rd most recent video sticky instead of the 1st and 2nd most recent video.
-        var oldRedditSubmissionId = await GetOldestRedditStickySubmissionsId();
+        var oldRedditSubmissionId = await GetOldestRedditStickiedSubmissionId();
 
         var previousRedditSubmissionId = await UpdatePreviousVideo(oldRedditSubmissionId, videoFeed);
 
@@ -336,7 +337,7 @@ public class RedditController
         _logger.LogInformation("Successfully finished moderation of Reddit submissions");
     }
 
-    private async Task<string> GetOldestRedditStickySubmissionsId()
+    private async Task<string> GetOldestRedditStickiedSubmissionId()
     {
         const string oldestRedditStickySubmissionQuery =
             "SELECT RedditSubmissionId FROM Submissions WHERE Stickied = 1 ORDER BY Timestamp LIMIT 1";
@@ -363,11 +364,13 @@ public class RedditController
 
     private async Task<string> UpdatePreviousVideo(string oldRedditSubmissionId, VideoFeed videoFeed)
     {
-        const string getPreviousVideoIdQuery =
-            "SELECT YoutubeVideoId FROM Submissions WHERE YoutubeVideoId != @videoId ORDER BY Timestamp DESC";
-        var previousVideoId = await _sqLiteConnection.QueryFirstAsync<string>(getPreviousVideoIdQuery,
-            new { videoId = videoFeed.Entry.VideoId });
-        _logger.LogInformation("Got the previously submitted YouTube video ID: {Id}", previousVideoId);
+        const string getPreviousSubmissionQuery =
+            "SELECT RedditSubmissionId, YoutubeVideoId FROM Submissions WHERE YoutubeVideoId != @videoId ORDER BY Timestamp DESC";
+        var (previousSubmissionId, previousVideoId) =
+            await _sqLiteConnection.QueryFirstAsync<(string RedditSubmissionId, string YoutubeVideoId)>(
+                getPreviousSubmissionQuery,
+                new { videoId = videoFeed.Entry.VideoId });
+        _logger.LogInformation("Got the previous submission details: {Details}", (previousSubmissionId, previousVideoId));
 
         const string previousVideoUpdateQuery = "UPDATE Submissions SET Stickied = 1 WHERE YoutubeVideoId = @videoId";
         await _sqLiteConnection.ExecuteAsync(previousVideoUpdateQuery, new { videoId = previousVideoId });
@@ -377,12 +380,12 @@ public class RedditController
         await _sqLiteConnection.ExecuteAsync(unstickyQuery, new { redditSubmissionId = oldRedditSubmissionId });
 
         _logger.LogInformation("Successfully updated the the previous video in the Reddit database");
-        return previousVideoId;
+        return previousSubmissionId;
     }
 
     private async Task UnstickyOldRedditSubmission(string oldRedditSubmissionId)
     {
-        _logger.LogDebug("Unsticking the old Reddit submission");
+        _logger.LogDebug("Unsticking the following Reddit submission: {Url}", RedditPrefixUrl + oldRedditSubmissionId[3..]);
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "api_type", "json" },
@@ -397,10 +400,10 @@ public class RedditController
         if (response.StatusCode != HttpStatusCode.OK || unstickySubmissionResponse.Details.Errors.Count != 0)
         {
             var failedResponseContent = await response.Content.ReadAsStringAsync();
-            _logger.LogError("Failed to unsticky the old Reddit submission, got the following response: {Response}",
-                failedResponseContent);
             if (response.StatusCode == HttpStatusCode.InternalServerError)
                 await RetryModeration(oldRedditSubmissionId, UnstickyOldRedditSubmission);
+            _logger.LogError("Failed to unsticky the old Reddit submission, got the following response: {Response}",
+                failedResponseContent);
 
             return;
         }
@@ -410,7 +413,7 @@ public class RedditController
 
     private async Task StickyRedditSubmission(string redditSubmissionId)
     {
-        _logger.LogDebug("Sticking the new Reddit submission");
+        _logger.LogDebug("Sticking the following Reddit submission: {Id}", RedditPrefixUrl + redditSubmissionId[3..]);
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "api_type", "json" },
@@ -425,16 +428,16 @@ public class RedditController
         if (response.StatusCode != HttpStatusCode.OK || stickySubmissionResponse.Details.Errors.Count != 0)
         {
             var failedResponseContent = await response.Content.ReadAsStringAsync();
+            if (response.StatusCode == HttpStatusCode.InternalServerError)
+                await RetryModeration(redditSubmissionId, StickyRedditSubmission);
             _logger.LogError("Failed to sticky the new Reddit submission, got the following response: {Response}",
                 failedResponseContent);
-            if (response.StatusCode == HttpStatusCode.InternalServerError)
-                await RetryModeration(redditSubmissionId, UnstickyOldRedditSubmission);
             return;
         }
 
-        _logger.LogInformation("Successfully stuck the following Reddit submission: {RedditUrl}", _redditUrl);
+        _logger.LogInformation("Successfully stuck the Reddit submission");
     }
-    
+
     private async Task RetryModeration(string redditSubmissionId, Func<string, Task> superMethod)
     {
         if (_redditModerationRetries > 5)
@@ -443,10 +446,11 @@ public class RedditController
                                "The submission now has to be manually stickied", _redditModerationRetries);
             return;
         }
-        
+
         _redditModerationRetries++;
         await Task.Delay(_redditModerationRetries * 1000);
-        _logger.LogInformation("Got 500 HTTP error from Reddit, retrying with attempt nr: {Retry}", _redditModerationRetries);
+        _logger.LogInformation("Got 500 HTTP error from Reddit, retrying with attempt nr: {Retry} with {Url}",
+            _redditModerationRetries, RedditPrefixUrl + redditSubmissionId[..3]);
         await superMethod(redditSubmissionId);
     }
 
