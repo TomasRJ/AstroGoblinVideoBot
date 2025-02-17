@@ -442,7 +442,7 @@ public class RedditController
     {
         if (_redditModerationRetries > 5)
         {
-            _logger.LogWarning("Retried {N} times to unsticky/sticky the post, but Reddit seems to be down at moment." +
+            _logger.LogWarning("Retried {N} times to unsticky/sticky the post, but Reddit seems to be down at moment. " +
                                "The submission now has to be manually stickied", _redditModerationRetries);
             return;
         }
