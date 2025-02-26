@@ -8,10 +8,14 @@ using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder();
 builder.Services.AddRazorPages().WithRazorPagesRoot("/Frontend");
+builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+
 if (args.Contains("--enable-http-logging"))
     builder.Services.AddHttpLogging(_ => { });
+
 const string logFormat = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:w}:{NewLine}{Message}{Exception}{NewLine}";
 var serilog = new LoggerConfiguration().WriteTo.Console(outputTemplate: logFormat).CreateLogger();
+
 if (args.Contains("--save-logs"))
 {
     Directory.CreateDirectory("./logs");
@@ -76,6 +80,7 @@ app.MapGet("/redditRedirect", async redditRedirect =>
 
     if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state) || query.ContainsKey("error"))
     {
+        // ReSharper disable once RedundantSuppressNullableWarningExpression
         logger.LogError("Got the following error from Reddit: {Error}", query["error"]!);
         return;
     }
