@@ -1,5 +1,4 @@
 ﻿{
-  "RedditAuthorizeUrl": "https://www.reddit.com/api/v1/authorize",
   "RedditAccessTokenUrl": "https://www.reddit.com/api/v1/access_token",
   "RedditSubmitUrl": "https://oauth.reddit.com/api/submit",
   "RedditStickyUrl": "https://oauth.reddit.com/api/set_subreddit_sticky",

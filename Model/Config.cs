@@ -2,7 +2,6 @@
 
 public readonly struct Config
 {
-    public string RedditAuthorizeUrl { get; init; }
     public string RedditAccessTokenUrl { get; init; }
     public string RedditSubmitUrl { get; init; }
     public string RedditStickyUrl { get; init; }
