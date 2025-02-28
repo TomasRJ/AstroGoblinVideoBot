@@ -9,6 +9,7 @@ using Serilog.Events;
 var builder = WebApplication.CreateBuilder();
 builder.Services.AddRazorPages().WithRazorPagesRoot("/Frontend");
 builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+builder.Configuration.AddJsonFile("config.json", false);
 
 if (args.Contains("--enable-http-logging"))
     builder.Services.AddHttpLogging(_ => { });
@@ -48,8 +49,8 @@ if (args.Contains("--enable-http-logging"))
     app.UseHttpLogging();
 app.UseStatusCodePages();
 
-var config = new ConfigurationBuilder().AddJsonFile("config.json", false).Build().Get<Config>();
-var userSecret = new ConfigurationBuilder().AddUserSecrets<Program>(false).Build().Get<Credentials>();
+var config = app.Configuration.Get<Config>();
+var userSecret = app.Configuration.Get<Credentials>();
 
 var youtubeController = new YoutubeController(userSecret, config, logger);
 var redditController = new RedditController(userSecret, config, logger);
