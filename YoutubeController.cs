@@ -5,7 +5,7 @@ using AstroGoblinVideoBot.Model;
 
 namespace AstroGoblinVideoBot;
 
-public class YoutubeController(Credentials userSecret, Config config, ILogger logger)
+public class YoutubeController(Credentials userSecret, Config config, ILogger logger, bool responseSaver)
 {
     private readonly HttpClient _youtubeHttpClient = new();
 
@@ -80,6 +80,9 @@ public class YoutubeController(Credentials userSecret, Config config, ILogger lo
         if (!SignatureVerification(youtubeSubscriptionRequest, requestBody))
             throw new InvalidOperationException("Invalid signature");
         youtubeSubscriptionRequest.Response.StatusCode = 200;
+        
+        if (responseSaver)
+            await ResponseSaver.SavePubSubResponseAsync("pubSubResponse.xml", requestBody);
 
         logger.LogDebug("Deserializing the Youtube video feed");
         requestBody.Position = 0;

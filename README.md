@@ -28,6 +28,7 @@ uploaded to the channel and them submission them to Reddit via the [Reddit API](
 - Support for running with a --enable-http-logging to
   enable [HTTP Logging](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.httploggingbuilderextensions.usehttplogging?view=aspnetcore-9.0&viewFallbackFrom=net-8.0)
 - Support for saving the logs into a "logs" directory with --save-logs flag, with a month-long rollover.
+- Support for saving the PubSub and Reddit submission + sticky/unsticky responses with the --save-responses flag.
 
 ### Project endpoints:
 

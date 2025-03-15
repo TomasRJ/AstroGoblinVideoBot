@@ -14,18 +14,20 @@ public class RedditController
     private readonly ILogger _logger;
     private readonly HttpClient _redditHttpClient = new();
     private readonly Credentials _userSecret;
+    private readonly bool _responseSaver;
 
     private const string RedditPrefixUrl = "https://redd.it/";
     private string _newSubmissionUrl = "";
     private int _redditModerationRetries;
 
-    public RedditController(Credentials credentials, Config config, ILogger logger)
+    public RedditController(Credentials credentials, Config config, ILogger logger, bool responseSaver)
     {
         _userSecret = credentials;
         _config = config;
         _logger = logger;
         _redditHttpClient.DefaultRequestHeaders.Add("User-Agent", _config.RedditUserAgent);
         CreateRedditDatabase().Wait();
+        _responseSaver = responseSaver;
     }
 
     private void SetBasicAuthHeader()
@@ -91,6 +93,7 @@ public class RedditController
         });
 
         var response = await _redditHttpClient.PostAsync(_config.RedditSubmitUrl, content);
+        await SaveResponse("redditSubmissionResponse.json", response);
         var submitResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
 
         if (response.StatusCode != HttpStatusCode.OK || submitResponse.Details.Errors.Count != 0)
@@ -107,6 +110,12 @@ public class RedditController
             _newSubmissionUrl, videoFeed.Entry.Link.Href);
 
         await RedditSubmissionModeration(submitResponse, videoFeed);
+    }
+
+    private async Task SaveResponse(string path, HttpResponseMessage response)
+    {
+        if (_responseSaver)
+            await ResponseSaver.SaveRedditResponseAsync(path, response);
     }
 
     #region OauthToken
@@ -394,6 +403,7 @@ public class RedditController
         });
 
         var response = await _redditHttpClient.PostAsync(_config.RedditStickyUrl, content);
+        await SaveResponse("redditUnstickyResponse.json", response);
 
         var unstickySubmissionResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
 
@@ -422,6 +432,7 @@ public class RedditController
         });
 
         var response = await _redditHttpClient.PostAsync(_config.RedditStickyUrl, content);
+        await SaveResponse("redditStickyResponse.json", response);
 
         var stickySubmissionResponse = await response.Content.ReadFromJsonAsync<SubmitResponse>();
 

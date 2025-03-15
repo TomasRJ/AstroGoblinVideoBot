@@ -51,9 +51,10 @@ app.UseStatusCodePages();
 
 var config = app.Configuration.Get<Config>();
 var userSecret = app.Configuration.Get<Credentials>();
+var responseSaver = args.Contains("--save-responses");
 
-var youtubeController = new YoutubeController(userSecret, config, logger);
-var redditController = new RedditController(userSecret, config, logger);
+var youtubeController = new YoutubeController(userSecret, config, logger, responseSaver);
+var redditController = new RedditController(userSecret, config, logger, responseSaver);
 
 var isSubscribed = await youtubeController.SubscribeToChannel();
 if (!isSubscribed)
