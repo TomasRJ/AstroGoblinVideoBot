@@ -98,14 +98,20 @@ app.MapGet("/redditRedirect", async redditRedirect =>
         logger.LogError("State string does not exist in the database");
 });
 
+var semaphore = new SemaphoreSlim(1);
 app.MapPost("/youtube", async youtubeSubscriptionRequest =>
 {
+    await semaphore.WaitAsync();
     var videoFeed = await youtubeController.GetVideoFeed(youtubeSubscriptionRequest);
 
     if (await redditController.IsVideoAlreadySubmitted(videoFeed))
+    {
+        semaphore.Release();
         return;
+    }
 
     await redditController.HandleRedditSubmission(videoFeed);
+    semaphore.Release();
 });
 
 await app.RunAsync();
