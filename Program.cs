@@ -10,6 +10,7 @@ var builder = WebApplication.CreateBuilder();
 builder.Services.AddRazorPages().WithRazorPagesRoot("/Frontend");
 builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 builder.Configuration.AddJsonFile("config.json", false);
+builder.Configuration.AddUserSecrets<Program>(optional: false);
 
 if (args.Contains("--enable-http-logging"))
     builder.Services.AddHttpLogging(_ => { });

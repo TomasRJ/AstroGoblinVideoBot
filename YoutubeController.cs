@@ -66,7 +66,9 @@ public class YoutubeController(Credentials userSecret, Config config, ILogger lo
         }
 
         var responseContent = await subscribeResponse.Content.ReadAsStringAsync();
-        logger.LogError("Failed to subscribe to Youtube channel, got following error: {Content}", responseContent);
+        logger.LogError("Failed to subscribe to YouTube channel, got following error: {Content}\n" +
+                        "Using the following callback url: {CallbackUrl}", responseContent,
+            userSecret.YoutubeCallbackUrl);
 
         return false;
     }
