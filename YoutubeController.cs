@@ -91,7 +91,10 @@ public class YoutubeController(Credentials userSecret, Config config, ILogger lo
         var xmlSerializer = new XmlSerializer(typeof(VideoFeed));
         var videoFeed = (VideoFeed)(xmlSerializer.Deserialize(requestBody) ?? throw new InvalidOperationException());
 
-        logger.LogInformation("Successfully deserialized the Youtube video feed");
+        logger.LogInformation("Successfully deserialized the Youtube video. Title: {Title} Link: {Link}" +
+                              " Published: {Published} Updated {Updated}",
+            videoFeed.Title, videoFeed.Entry.Link.Href, videoFeed.Entry.Published.ToString("O"),
+            videoFeed.Entry.Updated.ToString("O"));
         return videoFeed;
     }
 
