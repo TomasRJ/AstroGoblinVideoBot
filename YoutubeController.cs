@@ -93,7 +93,7 @@ public class YoutubeController(Credentials userSecret, Config config, ILogger lo
 
         logger.LogInformation("Successfully deserialized the Youtube video. Title: {Title} Link: {Link}" +
                               " Published: {Published} Updated {Updated}",
-            videoFeed.Title, videoFeed.Entry.Link.Href, videoFeed.Entry.Published.ToString("O"),
+            videoFeed.Entry.Title, videoFeed.Entry.Link.Href, videoFeed.Entry.Published.ToString("O"),
             videoFeed.Entry.Updated.ToString("O"));
         return videoFeed;
     }
