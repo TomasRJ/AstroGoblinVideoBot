@@ -4,10 +4,9 @@ This a C# .NET 8 project I made to have a "YouTube bot" reddit account submit ne
 the [Astrogoblin YouTube channel](https://www.youtube.com/@astrogoblinplays)
 to [the Astrogoblin subreddit](https://reddit.com/r/astrogoblin/).
 
-[YouTube supports push notifications via PubSubHubbub](https://developers.google.com/youtube/v3/guides/push_notifications) (
-also called WebSub), a server-to-server publish/subscribe protocol, where this project specifically uses
+[YouTube supports push notifications via PubSubHubbub](https://developers.google.com/youtube/v3/guides/push_notifications) (also called WebSub), a server-to-server publish/subscribe protocol, where this project specifically uses
 the ["Google PubSubHubbub Hub"](https://pubsubhubbub.appspot.com/) to get HTTP POST requests for when new videos are
-uploaded to the channel and them submission them to Reddit via the [Reddit API](https://www.reddit.com/dev/api/).
+uploaded to the channel and then submitting them to subreddit via the [Reddit API](https://www.reddit.com/dev/api/oauth).
 
 ### Features:
 
@@ -15,14 +14,14 @@ uploaded to the channel and them submission them to Reddit via the [Reddit API](
   submission.
 - Prevention of submitting the same video multiple times by storing the submission and video details in a SQLite
   database.
-- The ability to get details of all previous reddit submissions by using Reddit's JSON URL endpoint feature. This URL is
+- The ability to get details of all previous reddit submissions by using Reddit's JSON URL feature. This URL is
   set in the "UserPostsInfo" in the **config.json** file.
-- A front-end, where the /authorize endpoint has a HTML form to make
+- A front-end, where the `/authorize` endpoint has a HTML form to make
   a ["Reddit Authorize url"](https://github.com/reddit-archive/reddit/wiki/OAuth2#authorization) where the submit button
   takes you to the Reddit OAuth2 page to authorize the bot account to submit and moderate submissions.
 - HMAC signature verification to verify the authenticity of the PubSubHubbub Hub POST requests.
 - Usage of submission flairs to flair the new submission with a specific flair. Use
-  the [Reddit API](https://old.reddit.com/dev/api/oauth#GET_api_link_flair_v2) to get the flair ids for your subreddit.
+  the [Reddit API](https://reddit.com/dev/api/oauth#GET_api_link_flair_v2) to get the flair ids for your subreddit.
 - Automatic refreshing of the Reddit OAuth2 access token when it expires.
 - Automatic refreshing of the PubSubHubbub Hub subscription when it expires.
 - Support for running with a --enable-http-logging to
@@ -36,11 +35,11 @@ uploaded to the channel and them submission them to Reddit via the [Reddit API](
 - **/authorize** - The Frontend/Authorize.cshtml page, used to make the reddit authorize url with an HTML form. Has a "
   state string" that is used in tandem with the /redditRedirect endpoint to verify the authenticity of the Reddit OAuth2
   authorization.
-- **/redditRedirect** - A GET endpoint that takes the Reddit OAuth2 authorization redirect back to the project and with
+- **/redditRedirect** - A `GET` endpoint that takes the Reddit OAuth2 authorization redirect back to the project and with
   the code gets the Reddit OAuth2 access token and with the state string verifies the authenticity of the Reddit OAuth2
   redirect.
-- **/youtube** - A GET endpoint that is used by the PubSubHubbub Hub to verify the subscription.
-- **/youtube** - A POST endpoint that is used by the PubSubHubbub Hub to send the new video details to.
+- **/youtube** - A `GET` endpoint that is used by the PubSubHubbub Hub to verify the subscription.
+- **/youtube** - A `POST` endpoint that is used by the PubSubHubbub Hub to send the new video details to.
 
 ### Using the project:
 
